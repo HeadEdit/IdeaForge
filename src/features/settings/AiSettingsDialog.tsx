@@ -1,9 +1,15 @@
-import { Button, Input, Switch } from 'antd';
+import { Button, Input, Select, Switch } from 'antd';
 import { useEffect, useState } from 'react';
 import type { AiSettings } from '../../domain/model';
 import { AppDialog } from '../../components/AppDialog';
 import { AiClientError } from '../../ai/client';
 import { getAiErrorMessage } from '../../ai/error-messages';
+import {
+  AI_PROVIDERS,
+  applyAiProvider,
+  aiProviderIdFromBaseUrl,
+  type AiProviderId,
+} from '../../ai/providers';
 
 export interface AiSettingsDialogProps {
   open: boolean;
@@ -21,12 +27,25 @@ const empty: AiSettings = {
   thinkingEnabled: false,
 };
 
+function withProvider(settings: AiSettings, providerId = aiProviderIdFromBaseUrl(settings.baseUrl)): AiSettings {
+  return applyAiProvider(settings, providerId);
+}
+
 export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onClearKey, onTestConnection }: AiSettingsDialogProps) {
-  const [settings, setSettings] = useState<AiSettings>(initial);
+  const [settings, setSettings] = useState<AiSettings>(() => withProvider(initial));
+  const [providerId, setProviderId] = useState<AiProviderId>(() => aiProviderIdFromBaseUrl(initial.baseUrl));
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) { setSettings(initial); setStatus(''); } }, [open, initial]);
-  const update = (key: 'baseUrl' | 'apiKey' | 'model') => (event: React.ChangeEvent<HTMLInputElement>) => setSettings((current) => ({ ...current, [key]: event.target.value }));
+  useEffect(() => {
+    if (open) {
+      const nextProviderId = aiProviderIdFromBaseUrl(initial.baseUrl);
+      setProviderId(nextProviderId);
+      setSettings(withProvider(initial, nextProviderId));
+      setStatus('');
+    }
+  }, [open, initial]);
+  const update = (key: 'apiKey' | 'model') => (event: React.ChangeEvent<HTMLInputElement>) => setSettings((current) => ({ ...current, [key]: event.target.value }));
+  const provider = AI_PROVIDERS.find((item) => item.id === providerId) ?? AI_PROVIDERS[0];
   const run = async (operation: () => Promise<void>, success: string) => {
     setBusy(true); setStatus('');
     try { await operation(); setStatus(success); }
@@ -38,12 +57,22 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
   return <AppDialog open={open} title="AI 设置" onClose={onClose}>
     <form className="settings-form" onSubmit={(event) => { event.preventDefault(); void run(() => onSave(settings), '设置已保存'); }}>
       <p className="settings-notice">API Key 仅保存在当前浏览器的本地 IndexedDB 中，请勿在共享设备使用。</p>
-      <label htmlFor="ai-base-url">Base URL</label>
-      <Input id="ai-base-url" type="url" value={settings.baseUrl} onChange={update('baseUrl')} placeholder="https://api.example.com/v1" required />
+      <label htmlFor="ai-provider">模型厂商</label>
+      <Select
+        id="ai-provider"
+        aria-label="模型厂商"
+        value={providerId}
+        options={AI_PROVIDERS.map((item) => ({ value: item.id, label: item.label }))}
+        onChange={(nextProviderId: AiProviderId) => {
+          setProviderId(nextProviderId);
+          setSettings((current) => applyAiProvider(current, nextProviderId));
+        }}
+      />
+      <p className="settings-notice">接口地址：{provider.baseUrl}</p>
       <label htmlFor="ai-api-key">API Key</label>
       <Input.Password id="ai-api-key" value={settings.apiKey} onChange={update('apiKey')} autoComplete="off" required />
       <label htmlFor="ai-model">模型</label>
-      <Input id="ai-model" value={settings.model} onChange={update('model')} required />
+      <Input id="ai-model" value={settings.model} onChange={update('model')} placeholder="deepseek-v4-flash" required />
       <div className="settings-toggle-row">
         <label htmlFor="ai-thinking-enabled">思考模式</label>
         <Switch
