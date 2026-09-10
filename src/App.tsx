@@ -89,16 +89,11 @@ function App({ store: injectedStore, createEdgeId = () => crypto.randomUUID(), .
   const workflow = useStore(store, (state) => state.workflow);
   const settings = useStore(store, (state) => state.settings);
   const [openNodeId, setOpenNodeId] = useState<string>();
-  const [desktop, setDesktop] = useState(() => typeof window === 'undefined' || window.innerWidth >= 1024);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  useEffect(() => { const onResize = () => setDesktop(window.innerWidth >= 1024); window.addEventListener('resize', onResize); return () => window.removeEventListener('resize', onResize); }, []);
   useEffect(() => { void store.getState().initialize(); }, [store]);
   useEffect(() => { void store.getState().loadSettings(); }, [store]);
   const retry = () => { void store.getState().initialize(); };
 
-  if (!desktop) {
-    return <main className="app-shell app-state" role="status">请使用桌面浏览器打开工作台</main>;
-  }
   if (!initialized && !navigationError) {
     return <main className="app-shell app-state" role="status">正在准备工作区...</main>;
   }

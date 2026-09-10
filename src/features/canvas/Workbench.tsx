@@ -30,6 +30,8 @@ import { WorkflowNodeView } from './WorkflowNode';
 import { DeleteDialog } from './DeleteDialog';
 import { WorkspaceRail } from './WorkspaceRail';
 import { ReferenceLibraryDialog } from '../reference-library/ReferenceLibraryDialog';
+import { MobileWorkbenchChrome, MobileWorkbenchToolbar, type MobilePanel } from './MobileWorkbenchChrome';
+import { useMobileWorkbench } from './use-mobile-workbench';
 
 export interface WorkbenchProps {
   store: AppStore;
@@ -86,6 +88,9 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
   const [deleteTarget, setDeleteTarget] = useState<string>();
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
+  const [mobileMultiSelect, setMobileMultiSelect] = useState(false);
+  const isMobile = useMobileWorkbench();
   const canvasRef = useRef<HTMLElement>(null);
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow();
   const openNode = useCallback((nodeId: string) => {
@@ -120,6 +125,13 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
   const focusedNodeId = selectedNodeIds.at(-1);
   const selectedNode = workflow?.nodes.find((node) => node.id === focusedNodeId);
   const workflowId = workflow?.id;
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobilePanel(null);
+      setMobileMultiSelect(false);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     setSelectedNodeIds((current) => (current.length === 0 ? current : []));
@@ -182,7 +194,8 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
       x: bounds.left + bounds.width / 2,
       y: bounds.top + bounds.height / 2,
     }));
-  }, [screenToFlowPosition, store]);
+    if (isMobile) setMobilePanel(null);
+  }, [isMobile, screenToFlowPosition, store]);
 
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
@@ -213,10 +226,19 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
         ? [{ id: change.id, selected: change.selected }]
         : []
     ));
-    if (selectChanges.length > 0) {
+    if (selectChanges.length > 0 && !mobileMultiSelect) {
       setSelectedNodeIds((current) => applySelectChanges(current, selectChanges));
     }
-  }, [store]);
+  }, [mobileMultiSelect, store]);
+
+  const handleNodeClick = useCallback((event: React.MouseEvent, node: { id: string }) => {
+    if (!isMobile || !mobileMultiSelect) return;
+    event.preventDefault();
+    setSelectedNodeIds((current) => applySelectChanges(current, [{
+      id: node.id,
+      selected: !current.includes(node.id),
+    }]));
+  }, [isMobile, mobileMultiSelect]);
 
   const controlPlan = planControlRun(workflow, focusedNodeId);
   const runDisabled = !workflow || !executionAvailable || !controlPlan.ok;
@@ -232,9 +254,48 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
     store.getState().workflow?.nodes.filter((node) => node.status === 'running').forEach((node) => store.getState().stopNode(node.id));
   };
 
+  const workspaceRail = (
+    <WorkspaceRail
+      store={store}
+      collapsed={isMobile ? false : railCollapsed}
+      onToggleCollapsed={() => setRailCollapsed((current) => !current)}
+    />
+  );
+  const nodeLibrary = <NodeLibrary onAddNode={addNodeAtCanvasCenter} />;
+  const nodeInspector = (
+    <NodeInspector
+      progress={selectedNode ? progress[selectedNode.id] : undefined}
+      node={selectedNode}
+      workflow={workflow}
+      cards={cards}
+      documents={documents}
+      runs={runs}
+      store={store}
+      onOpen={canOpenSelectedNode ? openNode : undefined}
+    />
+  );
+
   return (
     <div className="workbench">
-      <header className="workbench-toolbar">
+      {isMobile ? (
+        <MobileWorkbenchToolbar
+          workflowName={workflow?.name ?? '正在载入工作流'}
+          running={hasRunningNodes}
+          runDisabled={runDisabled}
+          runDisabledReason={runDisabledReason}
+          deleteDisabled={!selectedNode}
+          multiSelect={mobileMultiSelect}
+          onRun={runWorkflow}
+          onStop={stopActive}
+          onOpenLibrary={() => setLibraryOpen(true)}
+          onZoomIn={() => { void zoomIn(); }}
+          onZoomOut={() => { void zoomOut(); }}
+          onFitView={() => { void fitView(); }}
+          onDelete={() => { if (selectedNode) { setDeleteTarget(selectedNode.id); setDeleteOpen(true); } }}
+          onToggleMultiSelect={() => setMobileMultiSelect((enabled) => !enabled)}
+          onOpenAiSettings={() => onOpenAiSettings?.()}
+        />
+      ) : <header className="workbench-toolbar">
         <div className="brand"><Bot size={20} aria-hidden="true" /><h1>IdeaForge</h1></div>
         <div className="workflow-name" aria-label="当前工作区">
           <span>工作区</span>
@@ -260,14 +321,10 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           {selectedNode && <IconButton label="删除选中节点" onClick={() => { setDeleteTarget(selectedNode.id); setDeleteOpen(true); }}><Trash2 size={17} /></IconButton>}
           <IconButton label="AI 设置" onClick={() => onOpenAiSettings?.()} disabled={!onOpenAiSettings} disabledReason="AI 设置尚未接入"><Settings size={17} /></IconButton>
         </div>
-      </header>
+      </header>}
       <div className={`workbench-body${railCollapsed ? ' is-rail-collapsed' : ''}`}>
-        <WorkspaceRail
-          store={store}
-          collapsed={railCollapsed}
-          onToggleCollapsed={() => setRailCollapsed((current) => !current)}
-        />
-        <NodeLibrary onAddNode={addNodeAtCanvasCenter} />
+        {!isMobile && workspaceRail}
+        {!isMobile && nodeLibrary}
         <section ref={canvasRef} className="canvas-shell" aria-label="工作流画布">
           {workflow ? (
             <ReactFlow
@@ -277,15 +334,16 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
               nodeTypes={nodeTypes}
               defaultViewport={workflow.viewport}
               onNodesChange={handleNodeChanges}
+              onNodeClick={handleNodeClick}
               onPaneClick={() => setSelectedNodeIds([])}
               onNodeContextMenu={(event) => event.preventDefault()}
               onPaneContextMenu={(event) => event.preventDefault()}
               deleteKeyCode={null}
-              selectionOnDrag
+              selectionOnDrag={!isMobile}
               selectionMode={SelectionMode.Partial}
               selectionKeyCode={null}
-              multiSelectionKeyCode="Shift"
-              panOnDrag={[1, 2]}
+              multiSelectionKeyCode={isMobile ? null : 'Shift'}
+              panOnDrag={isMobile ? true : [1, 2]}
               panActivationKeyCode="Space"
               onConnect={handleConnect}
               onMoveEnd={(_event, viewport: Viewport) => store.getState().setViewport(viewport)}
@@ -303,18 +361,18 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           ) : <div className="canvas-loading">正在准备工作台...</div>}
           {connectionFeedback && <div className="connection-feedback" role="status" aria-live="polite">{connectionFeedback}</div>}
         </section>
-        <NodeInspector
-          progress={selectedNode ? progress[selectedNode.id] : undefined}
-          node={selectedNode}
-          workflow={workflow}
-          cards={cards}
-          documents={documents}
-          runs={runs}
-          store={store}
-          onOpen={canOpenSelectedNode ? openNode : undefined}
-        />
+        {!isMobile && nodeInspector}
       </div>
       <StatusBar nodes={workflow?.nodes ?? []} progress={progress} runs={runs} saveStatus={saveStatus} onRetry={() => void store.getState().saveNow()} />
+      {isMobile && (
+        <MobileWorkbenchChrome
+          panel={mobilePanel}
+          onPanelChange={setMobilePanel}
+          workspace={workspaceRail}
+          library={nodeLibrary}
+          inspector={nodeInspector}
+        />
+      )}
       <ReferenceLibraryDialog open={libraryOpen} onClose={() => setLibraryOpen(false)} store={store} />
       <DeleteDialog open={deleteOpen} impact={{ ...deleteImpact, scope: deleteTarget ? 'node' : 'workflow' }} onClose={() => setDeleteOpen(false)} onConfirm={async () => { if (deleteTarget) await store.getState().deleteNode(deleteTarget); else await store.getState().deleteWorkflow(); setDeleteOpen(false); setDeleteTarget(undefined); }} />
     </div>
