@@ -53,6 +53,7 @@ export function createContentExtractRunner(
       }
 
       try {
+        context.reportProgress?.({ stage: '提取内容摘要', percent: 25, estimated: true });
         const summary = (await client.complete([
           {
             role: 'system',
@@ -63,6 +64,7 @@ export function createContentExtractRunner(
             content,
           },
         ], { signal: context.signal })).trim();
+        context.reportProgress?.({ stage: '整理摘要', percent: 85, estimated: true });
 
         deps.onConfigPatch(context.node.id, {
           summary,

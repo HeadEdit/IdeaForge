@@ -42,6 +42,7 @@ export type NodeRunnerResult =
 export interface NodeRunnerContext<
   Node extends WorkflowNode = WorkflowNode,
 > {
+  reportProgress?: (progress: import('../domain/execution-progress').ExecutionProgress) => void;
   workflow: Workflow;
   node: Node;
   inputs: Readonly<Record<string, NodeOutput>>;

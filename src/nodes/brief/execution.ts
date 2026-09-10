@@ -40,6 +40,7 @@ export const briefExecution: StandardExecutionContribution<BriefConfig> = {
       inputs: context.inputs,
       cards: context.cards,
       signal: context.signal,
+      reportProgress: context.reportProgress,
     });
   },
 };

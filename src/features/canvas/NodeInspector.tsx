@@ -1,4 +1,5 @@
 import { Button } from 'antd';
+import { ExecutionProgressView } from '../../components/ExecutionProgressView';
 
 import type { CandidateCard, NodeRun, ReferenceDocument, Workflow, WorkflowNode } from '../../domain/model';
 import { getAiErrorMessage } from '../../ai/error-messages';
@@ -8,7 +9,7 @@ import { builtinNodePlatform } from '../../nodes/builtins';
 import { statusLabels } from './WorkflowNode';
 import type { AppStore } from '../../state/use-app-store';
 
-const AI_ERROR_KINDS = ['network-or-cors', 'auth', 'rate-limit', 'server', 'invalid-response', 'stopped'] as const;
+const AI_ERROR_KINDS = ['network-or-cors', 'auth', 'rate-limit', 'server', 'invalid-response', 'unsupported', 'stopped'] as const;
 
 function runErrorMessage(errorKind: string): string {
   if (errorKind === 'invalid-input') return CARD_VARIABLE_SOURCE_REQUIRED;
@@ -19,6 +20,7 @@ function runErrorMessage(errorKind: string): string {
 }
 
 export interface NodeInspectorProps {
+  progress?: import('../../domain/execution-progress').ExecutionProgress;
   node?: WorkflowNode;
   workflow?: Workflow;
   cards?: readonly CandidateCard[];
@@ -29,6 +31,7 @@ export interface NodeInspectorProps {
 }
 
 export function NodeInspector({
+  progress,
   node,
   workflow,
   cards,
@@ -50,6 +53,7 @@ export function NodeInspector({
     <aside className="node-inspector" aria-label="属性面板">
       <div className="panel-heading"><h2>{plugin?.label ?? node.kind}</h2><span className={`status-pill status-pill--${node.status}`}>{statusLabels[node.status]}</span></div>
       <div className="node-inspector__content">
+        {node.status === 'running' && progress && <ExecutionProgressView progress={progress} />}
         {availability.status === 'plugin-unavailable' && <p className="error-text">节点插件不可用</p>}
         {availability.status === 'invalid-config' && <p className="error-text">节点配置无效</p>}
         {onOpen && availability.status === 'available' && plugin?.Dialog && (

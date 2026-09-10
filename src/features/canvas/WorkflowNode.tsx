@@ -1,6 +1,7 @@
 import { Dropdown } from 'antd';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Play } from 'lucide-react';
+import { ExecutionProgressView } from '../../components/ExecutionProgressView';
 
 import { lookupNodeDefinition, type NodePort, type PortDirection } from '../../domain/node-definitions';
 import type { NodeDisplayStatus } from '../../domain/model';
@@ -131,6 +132,7 @@ export function WorkflowNodeView({ id, data, selected }: NodeProps<WorkflowFlowN
         <strong className="workflow-node__title">{label}</strong>
         <span className={`status-pill status-pill--${domainNode.status}`}>{status}</span>
       </header>
+      {domainNode.status === 'running' && data.progress && <ExecutionProgressView progress={data.progress} />}
       {availability === 'plugin-unavailable' ? (
         <p className="workflow-node__preview">节点插件不可用</p>
       ) : availability === 'invalid-config' ? (

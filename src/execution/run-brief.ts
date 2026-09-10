@@ -44,6 +44,7 @@ export function createBriefRunner(deps: BriefRunnerDependencies): NodeRunner {
       }
 
       try {
+        context.reportProgress?.({ stage: '生成 Brief', percent: 25, estimated: true });
         const raw = await client.complete(
           buildBriefMessages(generationPrompt, sourceText),
           { signal: context.signal, temperature: 0.3 },
@@ -51,6 +52,7 @@ export function createBriefRunner(deps: BriefRunnerDependencies): NodeRunner {
         if (context.signal.aborted) {
           return { ok: false, errorKind: 'stopped' };
         }
+        context.reportProgress?.({ stage: '解析 Brief', percent: 85, estimated: true });
         const fields = parseBriefFields(raw);
         deps.onConfigPatch(context.node.id, fields);
         return {

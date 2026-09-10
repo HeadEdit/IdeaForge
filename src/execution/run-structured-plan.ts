@@ -182,6 +182,16 @@ export function createStructuredPlanRunner(
 
       let plannedRequestCount = 1;
       let succeededRequestCount = 0;
+      const stageLabels: Record<string, string> = { title: '识别系统模块', draft: '生成模块初稿', review: '审查模块', revision: '修订模块', graph: '生成依赖图谱' };
+      const stageRanges: Record<string, [number, number]> = { title: [10, 20], draft: [20, 50], review: [50, 60], revision: [60, 85], graph: [85, 95] };
+      const stageCompleted: Record<string, number> = {};
+      let moduleCount = 1;
+      const reportStage = (stage: string) => {
+        const completed = stageCompleted[stage] ?? 0;
+        const total = stage === 'draft' || stage === 'revision' ? moduleCount : 1;
+        const [start, end] = stageRanges[stage]!;
+        context.reportProgress?.({ stage: stageLabels[stage]!, percent: start + (end - start) * completed / total, completed, total, estimated: true });
+      };
 
       async function runRequest<T>(
         stage: StructuredPlanStage,
@@ -190,6 +200,7 @@ export function createStructuredPlanRunner(
         request: () => Promise<string>,
         parse: (raw: string) => T,
       ): Promise<T> {
+        reportStage(stage);
         let raw: string;
         try {
           raw = await request();
@@ -235,6 +246,8 @@ export function createStructuredPlanRunner(
           );
         }
         succeededRequestCount += 1;
+        stageCompleted[stage] = (stageCompleted[stage] ?? 0) + 1;
+        reportStage(stage);
         return parsed;
       }
 
@@ -277,6 +290,7 @@ export function createStructuredPlanRunner(
           },
         );
         const titles = Object.freeze(candidates.map((candidate) => candidate.title));
+        moduleCount = titles.length;
         plannedRequestCount = 3 + (2 * titles.length);
         const draftData = titles.map((title) => (
           createStructuredPlanDraftData(stagedSource, titles, title)
@@ -360,6 +374,7 @@ export function createStructuredPlanRunner(
         const graphRequestIndex = (2 * titles.length) + 2;
         let dependencyGraph: StructuredPlanDependencyGraph;
         let classifications: StructuredPlanModuleClassification[];
+        reportStage('graph');
         try {
           const generated = await generateStructuredPlanDependencyGraph({
             client,
@@ -380,6 +395,8 @@ export function createStructuredPlanRunner(
           );
         }
         succeededRequestCount += 1;
+        stageCompleted.graph = 1;
+        reportStage('graph');
 
         const classifiedModules = applyModuleClassifications(modules, classifications);
 

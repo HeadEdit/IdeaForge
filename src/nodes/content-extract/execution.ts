@@ -37,6 +37,7 @@ export const contentExtractExecution: StandardExecutionContribution<ContentExtra
       inputs: context.inputs,
       cards: context.cards,
       signal: context.signal,
+      reportProgress: context.reportProgress,
     });
   },
 };

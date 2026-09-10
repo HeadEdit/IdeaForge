@@ -13,6 +13,7 @@ import { useStore } from 'zustand';
 import type { AiErrorKind } from '../../ai/client';
 import { getAiErrorMessage } from '../../ai/error-messages';
 import { AppDialog } from '../../components/AppDialog';
+import { ExecutionProgressView } from '../../components/ExecutionProgressView';
 import type { StructuredPlanConfig, StructuredPlanModule } from '../../nodes/structured-plan/config';
 import { structuredPlanConfigSchema, STRUCTURED_PLAN_PRIORITY_LABELS } from '../../nodes/structured-plan/config';
 import {
@@ -131,6 +132,7 @@ export function StructuredPlanDialog({
   onClose: () => void;
 }) {
   const workflow = useStore(store, (state) => state.workflow);
+  const progress = useStore(store, (state) => state.nodeProgress?.[nodeId]);
   const node = workflow?.nodes.find((item) => item.id === nodeId);
   const parsed = structuredPlanConfigSchema.safeParse(node?.config);
   const config = parsed.success ? parsed.data : null;
@@ -495,6 +497,7 @@ export function StructuredPlanDialog({
 
   return (
     <AppDialog open={open} title="结构化策划案" onClose={guardedClose}>
+      {node?.status === 'running' && progress && <ExecutionProgressView progress={progress} />}
       {!node ? (
         <p className="structured-plan-error">结构化策划案节点不存在</p>
       ) : !config ? (

@@ -30,6 +30,7 @@ export interface RunStandardNodeDependencies {
 }
 
 export interface RunStandardNodeInput {
+  reportProgress?: (progress: import('../domain/execution-progress').ExecutionProgress) => void;
   workflow: Workflow;
   node: WorkflowNode;
   cards: readonly CandidateCard[];
@@ -57,6 +58,7 @@ export async function runStandardNode(
   }
 
   const inputs: Record<string, NodeOutput> = {};
+  input.reportProgress?.({ stage: '准备输入', percent: 5, estimated: true });
   for (const port of definition.inputs) {
     if (port.type === 'Control') continue;
     const resolved = dependencies.resolveNodeInput(
@@ -78,6 +80,7 @@ export async function runStandardNode(
   }
 
   try {
+    input.reportProgress?.({ stage: input.runner.requiresAi ? '请求 AI' : '处理数据', percent: 15, estimated: true });
     const result = await input.runner.run({
       workflow: input.workflow,
       node: input.node,
@@ -85,6 +88,7 @@ export async function runStandardNode(
       cards: input.cards,
       signal: input.signal,
       runtime: input.runtime,
+      reportProgress: input.reportProgress,
     });
 
     if (input.signal.aborted) {
@@ -102,6 +106,7 @@ export async function runStandardNode(
     }
 
     const outputDisposition = result.outputDisposition ?? 'replace';
+    input.reportProgress?.({ stage: '提交结果', percent: 95, estimated: true });
     if (outputDisposition === 'preserve') {
       return {
         ok: true,

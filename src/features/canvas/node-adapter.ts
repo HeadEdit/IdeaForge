@@ -13,6 +13,7 @@ export interface WorkflowNodeCallbacks {
 }
 
 export type WorkflowFlowNode = Node<{
+  progress?: import('../../domain/execution-progress').ExecutionProgress;
   domainNode: WorkflowNode;
   callbacks: WorkflowNodeCallbacks;
   workflow?: Workflow;
@@ -27,6 +28,7 @@ export function toFlowNodes(
   selectedNodeIds: readonly string[] = [],
   cards: readonly CandidateCard[] = [],
   documents: readonly ReferenceDocument[] = [],
+  progress: Record<string, import('../../domain/execution-progress').ExecutionProgress> = {},
 ): WorkflowFlowNode[] {
   const selected = new Set(selectedNodeIds);
   return workflow.nodes.map((node) => ({
@@ -36,6 +38,7 @@ export function toFlowNodes(
     selected: selected.has(node.id),
     deletable: false,
     data: {
+      progress: progress[node.id],
       domainNode: node,
       callbacks,
       workflow,

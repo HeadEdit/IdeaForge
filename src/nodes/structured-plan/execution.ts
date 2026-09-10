@@ -28,6 +28,7 @@ export const structuredPlanExecution: StandardExecutionContribution<StructuredPl
       inputs: context.inputs,
       cards: context.cards,
       signal: context.signal,
+      reportProgress: context.reportProgress,
     });
     return result.ok && configPatch
       ? { ...result, configPatch }
