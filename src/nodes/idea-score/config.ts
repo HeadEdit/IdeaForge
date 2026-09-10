@@ -32,7 +32,7 @@ export function clampIdeaScoreBatchSize(batchSize: number | undefined): number {
 }
 
 export const ideaScoreConfigSchema = z.object({
-  runMode: z.enum(['inferDimensions', 'score']).default('inferDimensions'),
+  runMode: z.enum(['inferDimensions', 'describeDimensions', 'score']).default('inferDimensions'),
   dimensions: z.array(scoreDimensionSchema).default([]),
   report: ideaScoreReportSchema.nullable().default(null),
   temperature: z.number().default(0),

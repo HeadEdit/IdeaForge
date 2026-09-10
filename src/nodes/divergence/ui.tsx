@@ -13,6 +13,12 @@ const TEMPERATURE_OPTIONS = [
   { value: 1, label: '1' },
 ];
 
+const FEEDBACK_MODE_OPTIONS = [
+  { value: 'explore', label: '探索（弱化历史偏好）' },
+  { value: 'balanced', label: '均衡（软偏置+探索配额）' },
+  { value: 'exploit', label: '深挖（优先跟随方向）' },
+] as const;
+
 function boundVariableName(source: WorkflowNode): string {
   const config = source.config as { name?: unknown };
   return typeof config.name === 'string' && config.name.trim() ? config.name.trim() : '卡片池';
@@ -52,6 +58,15 @@ export function DivergenceInspector({
           绑定变量：{boundVariableName(binding.source)} · 再生成时读取该池上的赞踩 / 分数
         </p>
       ) : null}
+
+      <label>
+        最近再生成方向
+        <p className="inspector-preview">
+          {config.lastDirection?.trim()
+            ? config.lastDirection.trim()
+            : '尚未评估出方向'}
+        </p>
+      </label>
 
       <label>
         需求
@@ -101,6 +116,15 @@ export function DivergenceInspector({
               patch({ concurrency });
             }
           }}
+        />
+      </label>
+      <label>
+        反馈利用
+        <Select
+          value={config.feedbackMode ?? 'balanced'}
+          options={[...FEEDBACK_MODE_OPTIONS]}
+          onChange={(feedbackMode) => patch({ feedbackMode })}
+          style={{ width: '100%' }}
         />
       </label>
       <label>

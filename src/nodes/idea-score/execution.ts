@@ -50,6 +50,7 @@ export const ideaScoreExecution: StandardExecutionContribution<IdeaScoreConfig> 
       inputs: context.inputs,
       cards: context.cards,
       signal: context.signal,
+      reportProgress: context.reportProgress,
     });
   },
 };

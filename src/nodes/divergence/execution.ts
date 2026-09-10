@@ -24,6 +24,7 @@ export const divergenceExecution: StandardExecutionContribution<DivergenceConfig
       inputs: context.inputs,
       cards: context.cards,
       signal: context.signal,
+      reportProgress: context.reportProgress,
     });
   },
 };

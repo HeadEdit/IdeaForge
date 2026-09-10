@@ -1,7 +1,15 @@
 import type { AiClient } from '../ai/client';
 import { AiClientError } from '../ai/client';
-import { buildIdeaScoreDimensionMessages, buildIdeaScoreMessages } from '../ai/prompts';
-import { parseIdeaScoreCardResults, parseIdeaScoreDimensions } from '../ai/schemas';
+import {
+  buildIdeaScoreDescribeDimensionMessages,
+  buildIdeaScoreDimensionMessages,
+  buildIdeaScoreMessages,
+} from '../ai/prompts';
+import {
+  parseIdeaScoreCardResults,
+  parseIdeaScoreDimensionDescriptions,
+  parseIdeaScoreDimensions,
+} from '../ai/schemas';
 import type { CandidateCard, CardScore } from '../domain/model';
 import { requireCardVariableSource } from '../domain/require-card-variable-source';
 import type {
@@ -260,6 +268,7 @@ export function createIdeaScoreRunner(
 
       try {
         if (runMode === 'inferDimensions') {
+          context.reportProgress?.({ stage: '推断评分维度', percent: 25, estimated: true });
           const messages = buildIdeaScoreDimensionMessages(contextText, resolvedCards);
           const raw = await completeWithRetry(client, context, temperature, messages, wait);
           const parsed = parseIdeaScoreDimensions(raw);
@@ -275,6 +284,27 @@ export function createIdeaScoreRunner(
           return noCollectionSuccess();
         }
 
+        if (runMode === 'describeDimensions') {
+          context.reportProgress?.({ stage: '补全维度描述', percent: 25, estimated: true });
+          const existing = config.dimensions ?? [];
+          const named = existing.filter((dimension) => dimension.name.trim().length > 0);
+          if (named.length === 0) {
+            return { ok: false, errorKind: 'invalid-input' };
+          }
+          const messages = buildIdeaScoreDescribeDimensionMessages(contextText, resolvedCards, named);
+          const raw = await completeWithRetry(client, context, temperature, messages, wait);
+          const parsed = parseIdeaScoreDimensionDescriptions(raw, named);
+          const descriptionById = new Map(parsed.map((item) => [item.id, item.description]));
+          deps.onConfigPatch(context.node.id, {
+            dimensions: existing.map((dimension) => {
+              const description = descriptionById.get(dimension.id);
+              return description ? { ...dimension, description } : dimension;
+            }),
+            runMode: 'score',
+          });
+          return noCollectionSuccess();
+        }
+
         const dimensions = config.dimensions ?? [];
         if (dimensions.length === 0) {
           return { ok: false, errorKind: 'invalid-input' };
@@ -285,6 +315,9 @@ export function createIdeaScoreRunner(
         const concurrency = Math.max(1, config.concurrency ?? 2);
         const batches = chunk(resolvedCards, batchSize);
         const batchTotal = batches.length;
+        let completedBatches = 0;
+        const reportBatches = () => context.reportProgress?.({ stage: '卡片评分', percent: 20 + 70 * completedBatches / batchTotal, completed: completedBatches, total: batchTotal, estimated: true });
+        reportBatches();
         console.info('[ideaScore] score start', {
           cardCount: resolvedCards.length,
           batchSize,
@@ -330,6 +363,9 @@ export function createIdeaScoreRunner(
               errorKind: isAiClientError(error) ? error.kind : 'invalid-response',
               failedCount: batch.length,
             };
+          } finally {
+            completedBatches++;
+            reportBatches();
           }
         });
 

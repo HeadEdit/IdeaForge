@@ -1,9 +1,13 @@
 import type { AiClient } from '../ai/client';
 import { AiClientError } from '../ai/client';
-import { buildDivergenceMessages, buildMethodInferenceMessages } from '../ai/prompts';
+import {
+  buildDivergenceMessages,
+  buildFeedbackEvaluationMessages,
+  buildMethodInferenceMessages,
+} from '../ai/prompts';
 import { parseCandidateCards, parseMethodIds } from '../ai/schemas';
 import { requireCardVariableSource } from '../domain/require-card-variable-source';
-import type { CandidateCard } from '../domain/model';
+import type { CandidateCard, ChatMessage } from '../domain/model';
 import type { DivergenceConfig } from '../nodes/divergence/config';
 import { getSkill, listSkills } from '../skills';
 import type { NodeRunner, NodeRunnerContext, NodeRunnerMetrics, NodeRunnerResult } from './runner-types';
@@ -44,7 +48,7 @@ async function completeWithRetry(
   client: AiClient,
   context: NodeRunnerContext,
   config: DivergenceConfig,
-  messages: ReturnType<typeof buildDivergenceMessages>,
+  messages: readonly ChatMessage[],
   wait: (ms: number) => Promise<void>,
 ): Promise<string> {
   let lastError: unknown;
@@ -53,7 +57,7 @@ async function completeWithRetry(
       throw new AiClientError('stopped', false);
     }
     try {
-      return await client.complete(messages, {
+      return await client.complete([...messages], {
         signal: context.signal,
         temperature: config.temperature,
       });
@@ -70,6 +74,35 @@ async function completeWithRetry(
     }
   }
   throw lastError;
+}
+
+async function evaluateFeedbackDirection(
+  client: AiClient,
+  context: NodeRunnerContext,
+  config: DivergenceConfig,
+  requirement: string,
+  feedbackCards: readonly CandidateCard[],
+  wait: (ms: number) => Promise<void>,
+): Promise<string | undefined> {
+  const feedbackMode = config.feedbackMode ?? 'balanced';
+  if (feedbackMode === 'explore' || feedbackCards.length === 0) {
+    return undefined;
+  }
+  try {
+    const messages = buildFeedbackEvaluationMessages(
+      requirement,
+      feedbackCards,
+      feedbackMode,
+    );
+    const raw = await completeWithRetry(client, context, config, messages, wait);
+    const direction = raw.trim();
+    return direction.length > 0 ? direction : undefined;
+  } catch (error) {
+    if (isAiClientError(error) && error.kind === 'stopped') {
+      throw error;
+    }
+    return undefined;
+  }
 }
 
 async function mapPool<T, R>(
@@ -132,22 +165,42 @@ export function createDivergenceRunner(
       const previousIds = binding.source.output?.type === 'CardCollection'
         ? binding.source.output.cardIds
         : [];
-      const priorCards = context.cards.filter(
-        (card) => previousIds.includes(card.id)
-          && (card.vote !== null || card.score !== undefined),
+      const poolCards = context.cards.filter((card) => previousIds.includes(card.id));
+      const feedbackCards = poolCards.filter(
+        (card) => card.vote !== null
+          || card.score !== undefined
+          || (card.review?.trim().length ?? 0) > 0,
       );
+      const dedupeCards = poolCards;
       const batchSize = config.batchSize;
 
       try {
+        const directionPromise = evaluateFeedbackDirection(
+          client,
+          context,
+          config,
+          requirement,
+          feedbackCards,
+          wait,
+        );
+
         let methodIds: string[];
+        context.reportProgress?.({ stage: '分析反馈与推断方法', percent: 15, estimated: true });
+        let direction: string | undefined;
         if (config.autoInferMethods ?? true) {
           const catalog = listSkills('method');
           const inferenceMessages = buildMethodInferenceMessages(requirement, catalog);
-          const raw = await completeWithRetry(client, context, config, inferenceMessages, wait);
+          const [evaluatedDirection, raw] = await Promise.all([
+            directionPromise,
+            completeWithRetry(client, context, config, inferenceMessages, wait),
+          ]);
+          direction = evaluatedDirection;
           methodIds = parseMethodIds(raw, catalog.map((skill) => skill.id));
         } else {
+          direction = await directionPromise;
           methodIds = config.methodIds;
         }
+
         if (methodIds.length === 0) {
           return { ok: false, errorKind: 'invalid-response' };
         }
@@ -157,13 +210,20 @@ export function createDivergenceRunner(
         }
         const requested = methodIds.length * batchSize;
         const concurrency = Math.min(config.concurrency, methodIds.length);
+        let completedBatches = 0;
+        const reportBatches = () => context.reportProgress?.({ stage: '生成创意批次', percent: 25 + 65 * completedBatches / methodIds.length, completed: completedBatches, total: methodIds.length, estimated: true });
+        reportBatches();
 
         const batches = await mapPool(methodIds, concurrency, async (methodId, index) => {
           const skill = skills[index];
           if (!skill) {
             return { ok: false, errorKind: 'invalid-response', failed: batchSize } satisfies MethodBatchResult;
           }
-          const messages = buildDivergenceMessages(skill, requirement, batchSize, priorCards);
+          const messages = buildDivergenceMessages(skill, requirement, batchSize, {
+            direction,
+            dedupeCards,
+            feedbackMode: config.feedbackMode ?? 'balanced',
+          });
           try {
             const raw = await completeWithRetry(client, context, config, messages, wait);
             const parsed = parseCandidateCards(raw);
@@ -204,6 +264,9 @@ export function createDivergenceRunner(
               errorKind: isAiClientError(error) ? error.kind : 'invalid-response',
               failed: batchSize,
             } satisfies MethodBatchResult;
+          } finally {
+            completedBatches++;
+            reportBatches();
           }
         });
 
@@ -230,6 +293,7 @@ export function createDivergenceRunner(
           ok: true,
           metrics,
           producedCards,
+          ...(direction ? { configPatch: { lastDirection: direction } } : {}),
         };
       } catch (error) {
         if (isAiClientError(error) && error.kind === 'stopped') {

@@ -7,6 +7,7 @@ import {
   methodInferencePrompts,
   structuredPlanPrompts,
 } from '../prompts';
+import type { DivergenceFeedbackMode } from '../prompts/builtin/divergence';
 import type { Skill } from '../skills';
 import type { StructuredPlanModuleWire, StructuredPlanReviewWire } from './schemas';
 
@@ -155,46 +156,66 @@ export function buildBriefMessages(
   ];
 }
 
+export type DivergenceMessageOptions = {
+  direction?: string;
+  dedupeCards?: readonly CandidateCard[];
+  feedbackMode?: DivergenceFeedbackMode;
+};
+
+export function buildFeedbackEvaluationMessages(
+  requirement: string,
+  feedbackCards: readonly CandidateCard[],
+  feedbackMode: Exclude<DivergenceFeedbackMode, 'explore'> = 'balanced',
+): ChatMessage[] {
+  const lines: string[] = [
+    divergencePrompts.topic(requirement),
+    divergencePrompts.evaluation.signalHint(feedbackCards.length),
+    divergencePrompts.evaluation.feedbackIntro,
+  ];
+  for (const card of feedbackCards) {
+    lines.push(divergencePrompts.evaluation.cardLine({
+      title: card.title,
+      concept: card.concept,
+      tags: card.tags,
+      vote: card.vote,
+      review: card.review,
+      score: card.score
+        ? {
+          average: card.score.average,
+          byDimension: card.score.byDimension.map((entry) => ({
+            name: entry.name,
+            score: entry.score,
+          })),
+        }
+        : undefined,
+    }));
+  }
+  return [
+    { role: 'system', content: divergencePrompts.evaluation.system(feedbackMode) },
+    { role: 'user', content: lines.join('\n') },
+  ];
+}
+
 export function buildDivergenceMessages(
   skill: Skill,
   requirement: string,
   count: number,
-  priorCards: readonly CandidateCard[],
+  options: DivergenceMessageOptions = {},
 ): ChatMessage[] {
+  const feedbackMode = options.feedbackMode ?? 'balanced';
   const userParts: string[] = [divergencePrompts.topic(requirement)];
-
-  const liked = priorCards.filter((card) => card.vote === 'up');
-  const disliked = priorCards.filter((card) => card.vote === 'down');
-  if (liked.length > 0 || disliked.length > 0) {
-    const lines: string[] = [divergencePrompts.voteIntro];
-    if (liked.length > 0) {
-      lines.push(divergencePrompts.likedHeader);
-      for (const card of liked) {
-        lines.push(divergencePrompts.cardSummary(card));
-      }
-    }
-    if (disliked.length > 0) {
-      lines.push(divergencePrompts.dislikedHeader);
-      for (const card of disliked) {
-        lines.push(divergencePrompts.cardSummary(card));
-      }
-    }
-    userParts.push(lines.join('\n'));
+  const direction = options.direction?.trim();
+  if (direction && feedbackMode !== 'explore') {
+    userParts.push(
+      [divergencePrompts.directionIntro, direction].join('\n'),
+    );
   }
 
-  const scored = priorCards
-    .filter((card) => card.score !== undefined)
-    .slice()
-    .sort((a, b) => (b.score?.average ?? 0) - (a.score?.average ?? 0));
-  if (scored.length > 0) {
-    const lines: string[] = [divergencePrompts.scoreIntro];
-    for (const card of scored) {
-      const score = card.score!;
-      lines.push(divergencePrompts.scoreLine({
-        title: card.title,
-        average: score.average,
-        dimensions: score.byDimension,
-      }));
+  const dedupeCards = options.dedupeCards ?? [];
+  if (dedupeCards.length > 0) {
+    const lines: string[] = [divergencePrompts.dedupeIntro];
+    for (const card of dedupeCards) {
+      lines.push(divergencePrompts.dedupeCardLine(card));
     }
     userParts.push(lines.join('\n'));
   }
@@ -204,8 +225,8 @@ export function buildDivergenceMessages(
       role: 'system',
       content: [
         skill.systemPrompt,
-        divergencePrompts.feedbackPolicy,
-        divergencePrompts.jsonOutput(count),
+        divergencePrompts.feedbackPolicy(feedbackMode),
+        divergencePrompts.jsonOutput(count, skill.name),
       ].join('\n'),
     },
     {
@@ -295,6 +316,29 @@ type IdeaScoreDimensionLike = {
   name: string;
   description: string;
 };
+
+export function buildIdeaScoreDescribeDimensionMessages(
+  contextText: string,
+  cards: readonly IdeaScoreCardLike[],
+  dimensions: readonly { id: string; name: string }[],
+): ChatMessage[] {
+  return [
+    {
+      role: 'system',
+      content: ideaScorePrompts.describeDimensions,
+    },
+    {
+      role: 'user',
+      content: [
+        ideaScorePrompts.context(contextText),
+        ideaScorePrompts.titlesHeader,
+        ...dimensions.map((dimension) => ideaScorePrompts.dimensionTitleLine(dimension)),
+        ideaScorePrompts.cardsHeader,
+        ...cards.flatMap((card) => ideaScorePrompts.cardLines(card)),
+      ].join('\n'),
+    },
+  ];
+}
 
 export function buildIdeaScoreDimensionMessages(
   contextText: string,

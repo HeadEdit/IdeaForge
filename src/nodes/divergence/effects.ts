@@ -14,6 +14,10 @@ export const divergenceEffects: NodeEffectContribution<DivergenceConfig> = {
       'pool',
       produced.map((card) => card.id),
     );
+
+    const patch = context.consumeConfigPatch?.();
+    if (!patch) return;
+    return context.capabilities.workflow.validateConfigPatch(context.nodeId, patch);
   },
   deleteEffects(context: DeleteEffectContext) {
     const removedCardIds = context.capabilities.cards.collectOrphanedCardIds(context.removedNodeIds);

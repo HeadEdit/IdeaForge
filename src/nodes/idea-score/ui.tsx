@@ -13,6 +13,7 @@ import {
 
 const RUN_MODE_OPTIONS = [
   { value: 'inferDimensions' as const, label: '推断维度' },
+  { value: 'describeDimensions' as const, label: '生成维度内容' },
   { value: 'score' as const, label: '按维度评分' },
 ];
 
@@ -140,6 +141,7 @@ export function IdeaScoreInspector({
           aria-label="运行动作"
           value={config.runMode}
           options={RUN_MODE_OPTIONS}
+          virtual={false}
           onChange={(runMode) => patchConfig({ runMode })}
           style={{ width: '100%' }}
         />

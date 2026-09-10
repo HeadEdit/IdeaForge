@@ -293,6 +293,48 @@ export function parseIdeaScoreDimensions(
   return cleaned.slice(0, 7);
 }
 
+const ideaScoreDimensionDescriptionsWireSchema = z.object({
+  dimensions: z.array(z.object({
+    id: z.string().optional(),
+    name: z.string().optional(),
+    description: z.string().optional(),
+  })),
+});
+
+export function parseIdeaScoreDimensionDescriptions(
+  raw: string,
+  expected: readonly { id: string; name: string }[],
+): { id: string; description: string }[] {
+  const parsed = extractJson(raw, '{');
+  const result = ideaScoreDimensionDescriptionsWireSchema.safeParse(parsed);
+  if (!result.success || expected.length === 0) {
+    throw new AiClientError('invalid-response', false);
+  }
+
+  const unused = result.data.dimensions.map((item) => ({
+    id: item.id?.trim() ?? '',
+    name: (item.name ?? '').trim(),
+    description: (item.description ?? '').trim(),
+  }));
+
+  const matched: { id: string; description: string }[] = [];
+  for (const dimension of expected) {
+    const byId = unused.findIndex((item) => item.id === dimension.id && item.description.length > 0);
+    const byName = unused.findIndex((item) => (
+      item.name === dimension.name.trim()
+      && item.description.length > 0
+    ));
+    const index = byId >= 0 ? byId : byName;
+    if (index < 0) {
+      throw new AiClientError('invalid-response', false);
+    }
+    const found = unused[index]!;
+    unused.splice(index, 1);
+    matched.push({ id: dimension.id, description: found.description });
+  }
+  return matched;
+}
+
 const ideaScoreResultsWireSchema = z.object({
   cards: z.array(z.object({
     cardId: z.string(),
