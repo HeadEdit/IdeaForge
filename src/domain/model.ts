@@ -1,3 +1,5 @@
+import type { AgentEvent } from './execution-progress';
+
 export type NodeKind = string;
 
 export type PortDataType = 'Text' | 'Text[]' | 'CardCollection' | 'TextStruct' | 'Control';
@@ -49,6 +51,7 @@ export interface WorkflowNode {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  agentEvents?: AgentEvent[];
 }
 
 export type TextStructTitleSource = 'auto' | 'fallback' | 'user';
@@ -94,6 +97,7 @@ export interface CandidateCard {
   tags: string[];
   vote: 'up' | 'down' | null;
   score?: CardScore;
+  review?: string;
   onCanvas: boolean;
   createdAt: string;
 }

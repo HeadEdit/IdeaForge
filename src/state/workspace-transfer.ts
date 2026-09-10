@@ -116,12 +116,20 @@ const cardSchema = z.object({
   tags: z.array(z.string()),
   vote: z.enum(['up', 'down']).nullable(),
   score: scoreSchema.optional(),
+  review: z.string().max(100).optional(),
   onCanvas: z.boolean(),
   createdAt: timestamp,
 }).strict();
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
+  agentEvents: z.array(z.object({
+    id: z.string(), round: z.number().int().min(1).max(8),
+    kind: z.enum(['request', 'response', 'tool']), title: z.string(),
+    status: z.enum(['running', 'succeeded', 'failed', 'stopped']),
+    startedAt: z.string(), finishedAt: z.string().optional(),
+    input: z.string().max(65000).optional(), output: z.string().max(65000).optional(),
+  }).strict()).max(40).optional(),
 }).strict();
 const conversationSchema = z.object({
   id,

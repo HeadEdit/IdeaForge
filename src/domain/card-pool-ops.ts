@@ -33,14 +33,32 @@ export function applyCardVote(
   ));
 }
 
+export const CARD_REVIEW_MAX_LENGTH = 100;
+
+export function normalizeCardReview(raw: string): string | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  return [...trimmed].slice(0, CARD_REVIEW_MAX_LENGTH).join('');
+}
+
 export function applyCardPatch(
   cards: readonly CandidateCard[],
   cardId: string,
-  patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags'>>,
+  patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags' | 'review'>>,
 ): CandidateCard[] {
-  return cards.map((card) => (
-    card.id !== cardId ? card : { ...card, ...patch }
-  ));
+  return cards.map((card) => {
+    if (card.id !== cardId) return card;
+    const next: CandidateCard = { ...card, ...patch };
+    if ('review' in patch) {
+      const normalized = normalizeCardReview(patch.review ?? '');
+      if (normalized === undefined) {
+        delete next.review;
+      } else {
+        next.review = normalized;
+      }
+    }
+    return next;
+  });
 }
 
 export function dropOrphanedCardReferences(

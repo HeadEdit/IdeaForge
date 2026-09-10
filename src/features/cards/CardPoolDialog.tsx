@@ -282,6 +282,7 @@ export function CardPoolDialog({
                   onOpen={deleteMode ? undefined : () => openDetail(card)}
                   onEdit={deleteMode ? undefined : () => openDetail(card, true)}
                   onVote={(nextVote) => store.getState().getHostCapabilities().cards.toggleVote(card.id, nextVote)}
+                  onReviewChange={(review) => store.getState().getHostCapabilities().cards.updateCard(card.id, { review })}
                 />
               ))}
             </div>
@@ -351,7 +352,10 @@ export function CardPoolDialog({
               onCancel={() => setDetailEditing(false)}
             />
           ) : (
-            <CardDetail card={detailCard} />
+            <CardDetail
+              card={detailCard}
+              onReviewChange={(review) => store.getState().getHostCapabilities().cards.updateCard(detailCard.id, { review })}
+            />
           )
         ) : null}
       </Modal>

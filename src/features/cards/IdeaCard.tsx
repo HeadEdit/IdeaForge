@@ -1,5 +1,6 @@
-import { Button, Checkbox } from 'antd';
+import { Button, Checkbox, Input } from 'antd';
 import { Pencil, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { CandidateCard } from '../../domain/model';
 import { formatMethodLabel } from '../../skills';
 
@@ -10,6 +11,7 @@ export function IdeaCard({
   onEdit,
   onSelect,
   onVote,
+  onReviewChange,
 }: {
   card: CandidateCard;
   selected?: boolean;
@@ -17,9 +19,16 @@ export function IdeaCard({
   onEdit?: () => void;
   onSelect?: () => void;
   onVote: (vote: 'up' | 'down') => void;
+  onReviewChange?: (review: string) => void;
 }) {
   const title = card.title || `卡片 ${card.id}`;
   const methodLabel = formatMethodLabel(card.method);
+  const [draft, setDraft] = useState(card.review ?? '');
+
+  useEffect(() => {
+    setDraft(card.review ?? '');
+  }, [card.review]);
+
   return (
     <article
       className={`idea-card${selected ? ' is-selected' : ''}`}
@@ -81,6 +90,22 @@ export function IdeaCard({
           onClick={(event) => { event.stopPropagation(); onVote('down'); }}
         />
       </div>
+      {onReviewChange ? (
+        <Input
+          className="idea-card__review"
+          size="small"
+          aria-label={`评价 ${title}`}
+          maxLength={100}
+          placeholder="一句话评价（辅助再生成）"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onClick={(event) => event.stopPropagation()}
+          onBlur={() => {
+            if ((card.review ?? '') === draft) return;
+            onReviewChange(draft);
+          }}
+        />
+      ) : null}
     </article>
   );
 }
