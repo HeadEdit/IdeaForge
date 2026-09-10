@@ -6,6 +6,12 @@
 
 ![IdeaForge 工作台](imgs/img_01.png)
 
+## 在线体验
+
+演示地址：[https://idea-forge-psi.vercel.app/](https://idea-forge-psi.vercel.app/)
+
+打开后请在 **AI 设置** 中自行填写 API Key。密钥仅保存在你本机浏览器中。
+
 ## 主要能力
 
 - 在自由画布上组合 AI 生成、变量和数据筛选节点。

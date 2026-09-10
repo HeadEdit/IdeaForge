@@ -6,6 +6,12 @@ English · [中文](README.md)
 
 ![IdeaForge workbench](imgs/img_01.png)
 
+## Try online
+
+Demo: [https://idea-forge-psi.vercel.app/](https://idea-forge-psi.vercel.app/)
+
+Configure your own API key under **AI Settings**. The key stays in your browser only.
+
 ## Highlights
 
 - Combine AI generation, variable, and data-selection nodes on a free-form canvas.
