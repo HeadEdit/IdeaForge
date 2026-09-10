@@ -9,10 +9,16 @@ const recommendationSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('suggest'),
     skillId: z.string().min(1),
-    confidence: z.number().min(0).max(1),
+    currentSkillFit: z.number().min(0).max(1),
+    suggestedSkillConfidence: z.number().min(0).max(1),
     reason: z.string().trim().min(1).max(160),
   }).strict(),
 ]);
+
+const HIGH_CONFIDENCE_THRESHOLD = 0.8;
+const LOW_CURRENT_SKILL_FIT_THRESHOLD = 0.4;
+const MODERATE_CONFIDENCE_THRESHOLD = 0.6;
+const MINIMUM_FIT_ADVANTAGE = 0.2;
 
 export interface ChatSkillRecommendation {
   skillId: string;
@@ -49,11 +55,19 @@ export async function recommendChatSkill(input: {
   const parsed = recommendationSchema.safeParse(value);
   if (!parsed.success || parsed.data.action === 'stay') return undefined;
   const recommendation = parsed.data;
-  if (recommendation.confidence < 0.8 || recommendation.skillId === input.currentSkillId) return undefined;
+  const currentFitScore = Math.round(recommendation.currentSkillFit * 100);
+  const suggestedConfidenceScore = Math.round(recommendation.suggestedSkillConfidence * 100);
+  const hasHighConfidence = recommendation.suggestedSkillConfidence >= HIGH_CONFIDENCE_THRESHOLD;
+  const escapesMismatchedSkill = (
+    recommendation.currentSkillFit <= LOW_CURRENT_SKILL_FIT_THRESHOLD
+    && recommendation.suggestedSkillConfidence >= MODERATE_CONFIDENCE_THRESHOLD
+    && suggestedConfidenceScore - currentFitScore >= MINIMUM_FIT_ADVANTAGE * 100
+  );
+  if ((!hasHighConfidence && !escapesMismatchedSkill) || recommendation.skillId === input.currentSkillId) return undefined;
   if (!skills.some((skill) => skill.id === recommendation.skillId)) return undefined;
   return {
     skillId: recommendation.skillId,
-    confidence: recommendation.confidence,
+    confidence: recommendation.suggestedSkillConfidence,
     reason: recommendation.reason,
   };
 }

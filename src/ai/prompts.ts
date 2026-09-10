@@ -285,12 +285,13 @@ export function buildChatMessages(
   referencedText: string | undefined,
   history: ChatMessage[],
   question: string,
+  webSearch = false,
 ): ChatMessage[] {
   const visibleHistory = history.filter((message) => message.role !== 'system' && !message.skillSuggestion);
   const messages: ChatMessage[] = [
     {
       role: 'system',
-      content: chatPrompts.system(skill?.systemPrompt),
+      content: chatPrompts.system(skill?.systemPrompt, { webSearch }),
     },
   ];
 

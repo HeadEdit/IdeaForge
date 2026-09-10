@@ -104,6 +104,7 @@ export async function runChat(
     input.referencedText,
     history,
     question,
+    Boolean(input.webSearch),
   );
 
   try {
