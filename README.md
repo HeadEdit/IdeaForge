@@ -1,10 +1,10 @@
-# DesignCanvas
+# IdeaForge
 
 [English](README_EN.md) · 中文
 
-**DesignCanvas**（AI 策划工作台）是一款本地优先的浏览器工作区。它通过可连接的工作流节点，将自然语言需求逐步转化为创意卡片、评分报告、深挖对话和结构化游戏策划案。
+**IdeaForge**（创意策划工作台）是一款本地优先的浏览器工作区。它通过可连接的工作流节点，将自然语言需求逐步转化为创意卡片、评分报告、深挖对话和结构化游戏策划案。
 
-![DesignCanvas 工作台](imgs/img_01.png)
+![IdeaForge 工作台](imgs/img_01.png)
 
 ## 主要能力
 

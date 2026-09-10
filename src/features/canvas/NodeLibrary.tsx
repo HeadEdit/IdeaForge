@@ -3,7 +3,7 @@ import type { DragEvent } from 'react';
 import type { NodeKind } from '../../domain/model';
 import { getNodeUiPlugin, nodeLibraryGroups } from '../nodes/ui-registry';
 
-export const NODE_DRAG_TYPE = 'application/x-design-canvas-node';
+export const NODE_DRAG_TYPE = 'application/x-ideaforge-node';
 
 export interface NodeLibraryProps {
   onAddNode(kind: NodeKind): void;

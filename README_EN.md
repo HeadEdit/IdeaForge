@@ -1,10 +1,10 @@
-# DesignCanvas
+# IdeaForge
 
 English · [中文](README.md)
 
-**DesignCanvas** is a local-first browser workspace for AI-assisted game design. Its connectable workflow nodes turn natural-language requirements into idea cards, score reports, focused conversations, and structured game design documents.
+**IdeaForge** (Creative Planning Workbench) is a local-first browser workspace for AI-assisted game design. Its connectable workflow nodes turn natural-language requirements into idea cards, score reports, focused conversations, and structured game design documents.
 
-![DesignCanvas workbench](imgs/img_01.png)
+![IdeaForge workbench](imgs/img_01.png)
 
 ## Highlights
 

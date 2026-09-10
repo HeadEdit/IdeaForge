@@ -9,8 +9,8 @@ import type {
   Workflow,
 } from '../domain/model';
 
-export const LEGACY_WORKSPACE_DATABASE_NAME = 'idea-forge';
-export const DEFAULT_WORKSPACE_DATABASE_NAME = 'design-canvas';
+export const LEGACY_WORKSPACE_DATABASE_NAME = 'design-canvas';
+export const DEFAULT_WORKSPACE_DATABASE_NAME = 'idea-forge';
 export const SETTINGS_KEY = 'singleton' as const;
 
 export type PersistedChild<T> = T & { snapshotOrder: number };

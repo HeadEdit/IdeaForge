@@ -15,7 +15,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "tsBuildInfoFile": "./node_modules/.cache/design-canvas.tsbuildinfo",
+    "tsBuildInfoFile": "./node_modules/.cache/ideaforge.tsbuildinfo",
     "jsx": "react-jsx",
     "types": ["vite/client", "node"],
     "paths": {

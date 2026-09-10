@@ -235,7 +235,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
   return (
     <div className="workbench">
       <header className="workbench-toolbar">
-        <div className="brand"><Bot size={20} aria-hidden="true" /><h1>DesignCanvas</h1></div>
+        <div className="brand"><Bot size={20} aria-hidden="true" /><h1>IdeaForge</h1></div>
         <div className="workflow-name" aria-label="当前工作区">
           <span>工作区</span>
           <span className="workflow-name__sep">/</span>

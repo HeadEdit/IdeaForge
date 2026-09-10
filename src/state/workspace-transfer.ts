@@ -10,8 +10,8 @@ import type {
 } from '../domain/model';
 import { builtinNodePlatform } from '../nodes/builtins';
 
-export const LEGACY_WORKSPACE_EXPORT_FORMAT = 'idea-forge-workspace' as const;
-export const WORKSPACE_EXPORT_FORMAT = 'design-canvas-workspace' as const;
+export const LEGACY_WORKSPACE_EXPORT_FORMAT = 'design-canvas-workspace' as const;
+export const WORKSPACE_EXPORT_FORMAT = 'idea-forge-workspace' as const;
 export const WORKSPACE_EXPORT_VERSION = 1 as const;
 export const WORKSPACE_EXPORT_MAX_BYTES = 50 * 1024 * 1024;
 

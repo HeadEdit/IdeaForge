@@ -1,8 +1,8 @@
-# DesignCanvas Node Guide
+# IdeaForge Node Guide
 
 English · [中文](NODES.md) · [Back to README](../README_EN.md)
 
-DesignCanvas currently provides 10 nodes in three groups: **Variable**, **AI Generation**, and **Data Selection**. This guide covers their purpose, ports, primary actions, and common connection patterns.
+IdeaForge currently provides 10 nodes in three groups: **Variable**, **AI Generation**, and **Data Selection**. This guide covers their purpose, ports, primary actions, and common connection patterns.
 
 ## Workbench and connections
 
