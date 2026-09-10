@@ -26,7 +26,7 @@ export function createChatEffects(runtime: ChatRuntime): NodeEffectContribution<
       }
     },
     session: {
-      async send(nodeId, text, capabilities) {
+      async send(nodeId, text, capabilities, options) {
         const workflow = capabilities.workflow.getWorkflow();
         const node = capabilities.workflow.getNode(nodeId);
         const parsed = chatConfigSchema.safeParse(node?.config);
@@ -68,6 +68,7 @@ export function createChatEffects(runtime: ChatRuntime): NodeEffectContribution<
               } };
               capabilities.sessions.setActivity?.(key, activity);
             },
+            skipSkillRecommendation: options?.skipSkillRecommendation,
           });
           if (!owns()) return;
           if (result.status === 'failed' && result.errorKind) {

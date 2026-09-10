@@ -16,6 +16,7 @@ import {
   getNodeExecution,
 } from './execution/runners';
 import { runChat } from './execution/run-chat';
+import { recommendChatSkill } from './execution/recommend-chat-skill';
 import { createAppStore, type AppStore } from './state/use-app-store';
 
 function createRuntimeStore(): AppStore {
@@ -43,6 +44,7 @@ function createRuntimeStore(): AppStore {
     getNodeExecution,
     runChat: (input) => runChat(input, {
       getClient: () => client,
+      recommendSkill: recommendChatSkill,
       id,
       now,
     }),

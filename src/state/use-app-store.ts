@@ -31,7 +31,7 @@ import {
 } from '../domain/chat-conversations';
 import { chatOperationKey, type ChatActivity, type ExecutionProgress } from '../domain/execution-progress';
 import { createChatAgentLibrary } from '../nodes/chat/agent-library';
-import type { ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
+import type { ChatSendOptions, ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
 import { createNodeHostCapabilities } from './create-node-host-capabilities';
 import { isRecord } from '../schema/common';
 import { canonicalizeNodeOutput, nodeOutputsEqual } from '../domain/node-output';
@@ -436,11 +436,11 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     markDirty();
   };
 
-  const startChat = async (nodeId: string, text: string): Promise<void> => {
+  const startChat = async (nodeId: string, text: string, options?: ChatSendOptions): Promise<void> => {
     const node = store.getState().workflow?.nodes.find((item) => item.id === nodeId);
     const session = node ? sessionScopes.get(node.kind)?.session : undefined;
     if (!session) return;
-    await session.send(nodeId, text, hostCapabilities());
+    await session.send(nodeId, text, hostCapabilities(), options);
   };
 
   const stopChat = (nodeId: string): void => {
@@ -462,7 +462,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     );
   };
 
-  const editChatLastMessage = async (nodeId: string, turnIndex: number, text: string): Promise<void> => {
+  const editChatLastMessage = async (nodeId: string, turnIndex: number, text: string, options?: ChatSendOptions): Promise<void> => {
     const trimmed = text.trim();
     if (!trimmed) return;
     const workflow = store.getState().workflow;
@@ -473,7 +473,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     if (chatOps.has(chatOperationKey(nodeId, session.activeConversationId))) return;
     const offset = openingContextTurnOffset(activeConversationMessages(session));
     removeChatTurns(nodeId, [turnIndex + offset]);
-    await startChat(nodeId, trimmed);
+    await startChat(nodeId, trimmed, options);
   };
 
   const hostCapabilities = (): NodeHostCapabilities => createNodeHostCapabilities({
@@ -498,10 +498,10 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     updateCard: (cardId, patch) => updateCandidateCard(cardId, patch),
     deleteCard: (variableNodeId, cardId) => deleteCandidateCard(variableNodeId, cardId),
     applyScores: (updates) => applyCardScores(updates),
-    sendChat: (nodeId, text) => startChat(nodeId, text),
+    sendChat: (nodeId, text, options) => startChat(nodeId, text, options),
     stopChat: (nodeId) => stopChat(nodeId),
     setChatSkill: (nodeId, skillId) => setChatSkill(nodeId, skillId),
-    editChatLastMessage: (nodeId, turnIndex, text) => editChatLastMessage(nodeId, turnIndex, text),
+    editChatLastMessage: (nodeId, turnIndex, text, options) => editChatLastMessage(nodeId, turnIndex, text, options),
     isExecutionAvailable: () => dependencies.isExecutionAvailable(),
     getAiClient: () => dependencies.getAiClient?.(),
     createAbortController: () => dependencies.createAbortController(),

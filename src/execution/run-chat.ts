@@ -12,6 +12,7 @@ import { ensureChatSessionShape } from '../domain/chat-session-migrate';
 import { getSkill } from '../skills';
 import { NO_CHAT_SKILL } from '../domain/chat-turns';
 import { runChatAgent, type AgentLibrary, type AgentResult } from './chat-agent';
+import type { ChatSkillRecommendation } from './recommend-chat-skill';
 
 export interface RunChatInput {
   onAgentEvent?: (event: AgentEvent) => void;
@@ -26,6 +27,7 @@ export interface RunChatInput {
   agentMode?: boolean;
   agentLibrary?: AgentLibrary;
   signal: AbortSignal;
+  skipSkillRecommendation?: boolean;
 }
 
 export interface RunChatResult {
@@ -38,6 +40,13 @@ export interface RunChatResult {
 
 export interface RunChatDependencies {
   getClient: () => AiClient | undefined;
+  recommendSkill?: (input: {
+    client: AiClient;
+    currentSkillId: string;
+    recentMessages: readonly import('../domain/model').ChatMessage[];
+    question: string;
+    signal: AbortSignal;
+  }) => Promise<ChatSkillRecommendation | undefined>;
   id: () => string;
   now: () => string;
 }
@@ -98,6 +107,48 @@ export async function runChat(
   );
 
   try {
+    if (!input.skipSkillRecommendation && deps.recommendSkill) {
+      const recommendation = await deps.recommendSkill({
+        client,
+        currentSkillId: skillId,
+        recentMessages: history,
+        question,
+        signal: input.signal,
+      });
+      if (input.signal.aborted) {
+        return { status: 'stopped', startedAt, finishedAt: deps.now() };
+      }
+      if (recommendation) {
+        const finishedAt = deps.now();
+        const referencedCardIds = input.referencedCards.map((card) => card.id);
+        const suggestionMessage = {
+          role: 'assistant' as const,
+          content: '',
+          skillSuggestion: {
+            currentSkillId: skillId,
+            suggestedSkillId: recommendation.skillId,
+            confidence: recommendation.confidence,
+            reason: recommendation.reason,
+          },
+        };
+        const suggestionMessages = [
+          ...messages.filter((message) => message.role !== 'system'),
+          suggestionMessage,
+        ];
+        const session: ChatSession = shaped
+          ? {
+            ...withActiveConversationMessages(shaped, suggestionMessages, finishedAt),
+            skillId,
+            referencedCardIds,
+          }
+          : createChatSession({
+            id: deps.id(), workflowId: input.workflowId, nodeId: input.nodeId,
+            skillId, referencedCardIds, createdAt: finishedAt, updatedAt: finishedAt,
+            conversationId: deps.id(), messages: suggestionMessages,
+          });
+        return { status: 'succeeded', startedAt, finishedAt, session };
+      }
+    }
     let agent: AgentResult | undefined;
     if (input.agentMode) {
       if (!input.agentLibrary) throw new AiClientError('unsupported', false);

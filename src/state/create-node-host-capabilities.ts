@@ -30,7 +30,7 @@ import type {
 } from '../domain/model';
 import { markDescendantsStale } from '../domain/graph';
 import { cardCollectionInputIds } from '../domain/workflow-io';
-import type { ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
+import type { ChatSendOptions, ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
 
 export interface NodeHostCapabilityAdapters {
   getChatActivities?(): Record<string, ChatActivity>;
@@ -52,10 +52,10 @@ export interface NodeHostCapabilityAdapters {
   ): void;
   deleteCard(variableNodeId: string, cardId: string): void;
   applyScores(updates: { cardId: string; score: CardScore }[]): void;
-  sendChat(nodeId: string, text: string): Promise<void>;
+  sendChat(nodeId: string, text: string, options?: ChatSendOptions): Promise<void>;
   stopChat(nodeId: string): void;
   setChatSkill(nodeId: string, skillId: string): void;
-  editChatLastMessage(nodeId: string, turnIndex: number, text: string): Promise<void>;
+  editChatLastMessage(nodeId: string, turnIndex: number, text: string, options?: ChatSendOptions): Promise<void>;
   isExecutionAvailable(): boolean;
   getAiClient(): AiClient | undefined;
   createAbortController(): AbortController;
@@ -199,10 +199,10 @@ export function createNodeHostCapabilities(
         ));
         return found ? ensureChatSessionShape(found) : undefined;
       },
-      send: (nodeId, text) => adapters.sendChat(nodeId, text),
+      send: (nodeId, text, options) => adapters.sendChat(nodeId, text, options),
       stop: (nodeId) => adapters.stopChat(nodeId),
       setSkill: (nodeId, skillId) => adapters.setChatSkill(nodeId, skillId),
-      editLastMessage: (nodeId, turnIndex, text) => adapters.editChatLastMessage(nodeId, turnIndex, text),
+      editLastMessage: (nodeId, turnIndex, text, options) => adapters.editChatLastMessage(nodeId, turnIndex, text, options),
       beginTurn: (nodeId, question, skillId) => {
         const controller = adapters.createAbortController();
         const workflow = adapters.getWorkflow();

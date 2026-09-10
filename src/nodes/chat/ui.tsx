@@ -16,6 +16,7 @@ import type { AppStore } from '../../state/use-app-store';
 import { AppDialog } from '../../components/AppDialog';
 import { SafeMarkdown } from '../../features/chat/SafeMarkdown';
 import type { NodeUiContribution } from '../types';
+import { getSkill } from '../../skills';
 import { chatConfigSchema, type ChatConfig } from './config';
 import {
   chatSkillIdToMenuPath,
@@ -89,6 +90,7 @@ export function ChatDialog({
     }
     return visible;
   }, [storedMessages, pending, nodeId]);
+  const hasPendingSkillSuggestion = messages.some((message) => message.skillSuggestion !== undefined);
   const turns = useMemo(() => groupChatTurns(messages), [messages]);
   const skillOptions = listChatSkillMenuOptions();
 
@@ -361,7 +363,8 @@ export function ChatDialog({
             {turns.map((turn, turnIndex) => {
               const complete = turn.length === 2
                 && turn[0]?.role === 'user'
-                && turn[1]?.role === 'assistant';
+                && turn[1]?.role === 'assistant'
+                && !turn[1]?.skillSuggestion;
               const itemId = complete ? itemIdForTurn(turn) : undefined;
               const isEditingTurn = editing && turnIndex === editingTurnIndex;
               const isLastTurn = turnIndex === lastTurnIndex;
@@ -424,6 +427,18 @@ export function ChatDialog({
                           )),
                         )}
                         branchDisabled={busy || !session}
+                        suggestionDisabled={busy || !executionAvailable}
+                        onAcceptSuggestion={message.skillSuggestion ? () => {
+                          if (busy || !executionAvailable) return;
+                          capabilities.sessions.setSkill(nodeId, message.skillSuggestion!.suggestedSkillId);
+                          void capabilities.sessions.editLastMessage(nodeId, turnIndex, turn[0]?.content ?? '');
+                        } : undefined}
+                        onDeclineSuggestion={message.skillSuggestion ? () => {
+                          if (busy || !executionAvailable) return;
+                          void capabilities.sessions.editLastMessage(
+                            nodeId, turnIndex, turn[0]?.content ?? '', { skipSkillRecommendation: true },
+                          );
+                        } : undefined}
                       />
                       {message.agentEvents && <AgentTimeline events={message.agentEvents} />}
                       </div>
@@ -530,7 +545,7 @@ export function ChatDialog({
                         void send();
                       }
                     }}
-                    disabled={busy}
+                    disabled={busy || hasPendingSkillSuggestion}
                   />
                   <Button
                     type="primary"
@@ -542,7 +557,7 @@ export function ChatDialog({
                       capabilities.sessions.stop(nodeId);
                       setPending((current) => { const next = { ...current }; delete next[conversationKey]; return next; });
                     }}
-                    disabled={!busy && (!executionAvailable || !text.trim())}
+                    disabled={!busy && (!executionAvailable || !text.trim() || hasPendingSkillSuggestion)}
                   />
                 </div>
               </div>
@@ -616,6 +631,9 @@ function ChatBubble({
   onExport,
   exported,
   branchDisabled,
+  onAcceptSuggestion,
+  onDeclineSuggestion,
+  suggestionDisabled,
 }: {
   message: ChatMessage;
   copied: boolean;
@@ -627,6 +645,9 @@ function ChatBubble({
   onExport?: () => void;
   exported?: boolean;
   branchDisabled?: boolean;
+  onAcceptSuggestion?: () => void;
+  onDeclineSuggestion?: () => void;
+  suggestionDisabled?: boolean;
 }) {
   if (message.role === 'user') {
     return (
@@ -654,6 +675,20 @@ function ChatBubble({
               </button>
             </div>
           ) : null}
+        </div>
+      </div>
+    );
+  }
+  if (message.skillSuggestion) {
+    const skillName = getSkill(message.skillSuggestion.suggestedSkillId)?.name
+      ?? message.skillSuggestion.suggestedSkillId;
+    return (
+      <div className="chat-dialog__skill-suggestion" role="status">
+        <strong>建议切换到「{skillName}」</strong>
+        <p>{message.skillSuggestion.reason}</p>
+        <div className="chat-dialog__skill-suggestion-actions">
+          <Button type="primary" size="small" disabled={suggestionDisabled} onClick={onAcceptSuggestion}>切换并重新回答</Button>
+          <Button size="small" disabled={suggestionDisabled} onClick={onDeclineSuggestion}>继续当前技能</Button>
         </div>
       </div>
     );

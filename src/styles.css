@@ -1555,6 +1555,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [tabindex]:fo
   white-space: pre-wrap;
 }
 .chat-dialog__assistant-wrap { display: grid; gap: 10px; width: 100%; color: #1f2328; line-height: 1.75; }
+.chat-dialog__skill-suggestion { display: grid; gap: 8px; width: min(520px, 100%); padding: 14px 16px; border: 1px solid #91caff; border-radius: 12px; background: #f0f7ff; color: #1f2328; }
+.chat-dialog__skill-suggestion p { margin: 0; color: #57606a; }
+.chat-dialog__skill-suggestion-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .chat-dialog__thinking { margin: 0; color: #8a939c; font-size: 13px; }
 .chat-dialog__typing { display: flex; gap: 5px; padding: 4px 0 8px; }
 .chat-dialog__typing span {

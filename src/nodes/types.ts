@@ -80,14 +80,18 @@ export interface CardCapability {
   ): void;
 }
 
+export interface ChatSendOptions {
+  skipSkillRecommendation?: boolean;
+}
+
 export interface SessionCapability {
   getActivity?(nodeId: string, conversationId: string): import('../domain/execution-progress').ChatActivity | undefined;
   setActivity?(key: string, activity: import('../domain/execution-progress').ChatActivity | undefined): void;
   getSession(nodeId: string): ChatSession | undefined;
-  send(nodeId: string, text: string): Promise<void>;
+  send(nodeId: string, text: string, options?: ChatSendOptions): Promise<void>;
   stop(nodeId: string): void;
   setSkill(nodeId: string, skillId: string): void;
-  editLastMessage(nodeId: string, turnIndex: number, text: string): Promise<void>;
+  editLastMessage(nodeId: string, turnIndex: number, text: string, options?: ChatSendOptions): Promise<void>;
   beginTurn(nodeId: string, question: string, skillId: string): AbortController;
   completeTurn(nodeId: string, session: ChatSession): void;
   failTurn(nodeId: string, status: 'failed' | 'stopped', conversationId?: string): void;
@@ -174,7 +178,7 @@ export interface NodeEffectContribution<Config> {
   executionEffects?(context: ExecutionEffectContext<Config>): ConfigPatchResult | void;
   deleteEffects?(context: DeleteEffectContext): void;
   session?: {
-    send(nodeId: string, text: string, capabilities: NodeHostCapabilities): Promise<void>;
+    send(nodeId: string, text: string, capabilities: NodeHostCapabilities, options?: ChatSendOptions): Promise<void>;
     stop(nodeId: string, capabilities: NodeHostCapabilities, conversationId?: string): void;
     removeTurns(nodeId: string, turnIndexes: readonly number[], capabilities: NodeHostCapabilities): void;
   };

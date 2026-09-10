@@ -130,6 +130,12 @@ const messageSchema = z.object({
     startedAt: z.string(), finishedAt: z.string().optional(),
     input: z.string().max(65000).optional(), output: z.string().max(65000).optional(),
   }).strict()).max(40).optional(),
+  skillSuggestion: z.object({
+    currentSkillId: z.string(),
+    suggestedSkillId: z.string().min(1),
+    confidence: z.number().min(0).max(1),
+    reason: z.string().min(1).max(160),
+  }).strict().optional(),
 }).strict();
 const conversationSchema = z.object({
   id,

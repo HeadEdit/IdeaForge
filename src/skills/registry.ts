@@ -26,3 +26,9 @@ export function listSkills(category?: SkillCategory): readonly Skill[] {
   }
   return builtins.filter((skill) => skill.category === category);
 }
+
+export function listChatSkills(): readonly Skill[] {
+  return builtins
+    .filter((skill) => skill.chat !== undefined && (skill.category === 'role' || skill.category === 'assistant'))
+    .sort((left, right) => left.chat!.order - right.chat!.order);
+}

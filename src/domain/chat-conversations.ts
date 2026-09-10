@@ -116,6 +116,7 @@ export function completeQaTurns(messages: readonly ChatMessage[]): ChatMessage[]
     turn.length === 2
     && turn[0]?.role === 'user'
     && turn[1]?.role === 'assistant'
+    && !turn[1]?.skillSuggestion
   ));
 }
 
@@ -375,7 +376,8 @@ export function omitConversationTurns(
   for (const [index, turn] of turns.entries()) {
     const complete = turn.length === 2
       && turn[0]?.role === 'user'
-      && turn[1]?.role === 'assistant';
+      && turn[1]?.role === 'assistant'
+      && !turn[1]?.skillSuggestion;
     if (complete) completeIndex += 1;
     if (drop.has(index)) continue;
     keptTurns.push(turn);

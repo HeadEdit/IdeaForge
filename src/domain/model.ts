@@ -52,6 +52,12 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   agentEvents?: AgentEvent[];
+  skillSuggestion?: {
+    currentSkillId: string;
+    suggestedSkillId: string;
+    confidence: number;
+    reason: string;
+  };
 }
 
 export type TextStructTitleSource = 'auto' | 'fallback' | 'user';

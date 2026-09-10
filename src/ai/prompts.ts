@@ -286,7 +286,7 @@ export function buildChatMessages(
   history: ChatMessage[],
   question: string,
 ): ChatMessage[] {
-  const visibleHistory = history.filter((message) => message.role !== 'system');
+  const visibleHistory = history.filter((message) => message.role !== 'system' && !message.skillSuggestion);
   const messages: ChatMessage[] = [
     {
       role: 'system',

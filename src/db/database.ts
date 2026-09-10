@@ -91,49 +91,53 @@ function createWorkspaceDatabase(
   });
 }
 
-async function databaseHasWorkflows(dbName: string): Promise<boolean> {
-  try {
-    const database = await createWorkspaceDatabase(dbName);
-    const count = await database.count('workflows');
-    database.close();
-    return count > 0;
-  } catch {
-    return false;
-  }
-}
-
 async function migrateLegacyWorkspaceDatabaseIfNeeded(): Promise<void> {
-  if (await databaseHasWorkflows(DEFAULT_WORKSPACE_DATABASE_NAME)) return;
-  if (!await databaseHasWorkflows(LEGACY_WORKSPACE_DATABASE_NAME)) return;
-
   const source = await createWorkspaceDatabase(LEGACY_WORKSPACE_DATABASE_NAME);
   const target = await createWorkspaceDatabase(DEFAULT_WORKSPACE_DATABASE_NAME);
   try {
-    const [workflows, runs, cards, sessions, settings] = await Promise.all([
+    const [sourceWorkflows, runs, documents, cards, sessions, sourceSettings] = await Promise.all([
       source.getAll('workflows'),
       source.getAll('runs'),
+      source.getAll('documents'),
       source.getAll('cards'),
       source.getAll('sessions'),
-      source.getAll('settings'),
+      source.get('settings', SETTINGS_KEY),
     ]);
     const transaction = target.transaction(
-      ['workflows', 'runs', 'cards', 'sessions', 'settings'],
+      ['workflows', 'runs', 'documents', 'cards', 'sessions', 'settings'],
       'readwrite',
     );
-    for (const workflow of workflows) {
+
+    for (const workflow of sourceWorkflows) {
+      const current = await transaction.objectStore('workflows').get(workflow.id);
+      if (current !== undefined && workflow.updatedAt <= current.updatedAt) continue;
+
+      for (const storeName of ['runs', 'documents', 'cards', 'sessions'] as const) {
+        const store = transaction.objectStore(storeName);
+        const existingKeys = await store.index('workflowId').getAllKeys(workflow.id);
+        for (const key of existingKeys) {
+          await store.delete(key);
+        }
+      }
+
       await transaction.objectStore('workflows').put(workflow);
+      for (const run of runs.filter((item) => item.workflowId === workflow.id)) {
+        await transaction.objectStore('runs').put(run);
+      }
+      for (const document of documents.filter((item) => item.workflowId === workflow.id)) {
+        await transaction.objectStore('documents').put(document);
+      }
+      for (const card of cards.filter((item) => item.workflowId === workflow.id)) {
+        await transaction.objectStore('cards').put(card);
+      }
+      for (const session of sessions.filter((item) => item.workflowId === workflow.id)) {
+        await transaction.objectStore('sessions').put(session);
+      }
     }
-    for (const run of runs) {
-      await transaction.objectStore('runs').put(run);
-    }
-    for (const card of cards) {
-      await transaction.objectStore('cards').put(card);
-    }
-    for (const session of sessions) {
-      await transaction.objectStore('sessions').put(session);
-    }
-    for (const setting of settings) {
-      await transaction.objectStore('settings').put(setting);
+
+    const settingsStore = transaction.objectStore('settings');
+    if (sourceSettings !== undefined && await settingsStore.get(SETTINGS_KEY) === undefined) {
+      await settingsStore.put(sourceSettings, SETTINGS_KEY);
     }
     await transaction.done;
   } finally {
