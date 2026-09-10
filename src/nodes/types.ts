@@ -63,7 +63,7 @@ export interface CardCapability {
   toggleVote(cardId: string, vote: 'up' | 'down'): void;
   updateCard(
     cardId: string,
-    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags'>>,
+    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags' | 'review'>>,
   ): void;
   deleteCard(variableNodeId: string, cardId: string): void;
   applyScores(updates: { cardId: string; score: CardScore }[]): void;
@@ -81,6 +81,8 @@ export interface CardCapability {
 }
 
 export interface SessionCapability {
+  getActivity?(nodeId: string, conversationId: string): import('../domain/execution-progress').ChatActivity | undefined;
+  setActivity?(key: string, activity: import('../domain/execution-progress').ChatActivity | undefined): void;
   getSession(nodeId: string): ChatSession | undefined;
   send(nodeId: string, text: string): Promise<void>;
   stop(nodeId: string): void;
@@ -88,10 +90,11 @@ export interface SessionCapability {
   editLastMessage(nodeId: string, turnIndex: number, text: string): Promise<void>;
   beginTurn(nodeId: string, question: string, skillId: string): AbortController;
   completeTurn(nodeId: string, session: ChatSession): void;
-  failTurn(nodeId: string, status: 'failed' | 'stopped'): void;
+  failTurn(nodeId: string, status: 'failed' | 'stopped', conversationId?: string): void;
   removeTurns(nodeId: string, turnIndexes: readonly number[]): void;
   purgeSessions(removedNodeIds: readonly string[], removedCardIds: readonly string[]): ChatSession[];
   setActiveConversation(nodeId: string, conversationId: string): void;
+  createConversation(nodeId: string): void;
   renameConversation(nodeId: string, conversationId: string, name: string): void;
   deleteConversation(nodeId: string, conversationId: string): void;
   forkConversation(
@@ -119,6 +122,7 @@ export interface NodeHostCapabilities {
 }
 
 export interface TypedNodeRunnerContext<Config> {
+  reportProgress?: (progress: import('../domain/execution-progress').ExecutionProgress) => void;
   workflow: Workflow;
   node: WorkflowNode;
   config: Config;
@@ -160,12 +164,18 @@ export interface DeleteEffectContext {
 }
 
 export interface NodeEffectContribution<Config> {
+  createSessionScope?(runtime: {
+    runChat(input: import('../execution/run-chat').RunChatInput): Promise<import('../execution/run-chat').RunChatResult>;
+    id(): string;
+    now(): string;
+  }): NodeEffectContribution<Config>;
+  cancelAll?(nodeId?: string): void;
   derivedOutput?(context: DerivedOutputContext<Config>): NodeOutput | undefined;
   executionEffects?(context: ExecutionEffectContext<Config>): ConfigPatchResult | void;
   deleteEffects?(context: DeleteEffectContext): void;
   session?: {
     send(nodeId: string, text: string, capabilities: NodeHostCapabilities): Promise<void>;
-    stop(nodeId: string, capabilities: NodeHostCapabilities): void;
+    stop(nodeId: string, capabilities: NodeHostCapabilities, conversationId?: string): void;
     removeTurns(nodeId: string, turnIndexes: readonly number[], capabilities: NodeHostCapabilities): void;
   };
 }

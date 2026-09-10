@@ -29,7 +29,8 @@ import {
   openingContextTurnOffset,
   withChatTextStructOutputs,
 } from '../domain/chat-conversations';
-import { bindChatRuntime } from '../nodes/chat/session';
+import { chatOperationKey, type ChatActivity, type ExecutionProgress } from '../domain/execution-progress';
+import { createChatAgentLibrary } from '../nodes/chat/agent-library';
 import type { ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
 import { createNodeHostCapabilities } from './create-node-host-capabilities';
 import { isRecord } from '../schema/common';
@@ -84,6 +85,8 @@ export interface AppStoreDependencies {
 }
 
 export interface AppState {
+  chatActivities: Record<string, ChatActivity>;
+  nodeProgress: Record<string, ExecutionProgress>;
   workflow?: Workflow;
   workflows: Workflow[];
   runs: NodeRun[];
@@ -320,8 +323,22 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
       : validated;
   };
 
-  bindChatRuntime({
-    runChat: dependencies.runChat ?? (async () => ({
+  const sessionRuntime: { runChat(input: RunChatInput): Promise<RunChatResult>; id(): string; now(): string } = {
+    runChat: dependencies.runChat ? (input) => {
+      const activation = workflowActivationGeneration;
+      return dependencies.runChat!({
+        ...input,
+        agentLibrary: input.agentMode ? createChatAgentLibrary(input,
+          () => store.getState().workflow,
+          () => activation === workflowActivationGeneration,
+          {
+            list: () => store.getState().documents,
+            add: (value) => store.getState().addDocument(value),
+            update: (id, patch) => store.getState().updateDocument(id, patch),
+            delete: (id) => store.getState().deleteDocument(id),
+          }) : undefined,
+      });
+    } : (async () => ({
       status: 'failed',
       startedAt: dependencies.now(),
       finishedAt: dependencies.now(),
@@ -329,7 +346,10 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     })),
     id: dependencies.id,
     now: dependencies.now,
-  });
+  };
+  const sessionScopes = new Map([...builtinNodePlatform.plugins].map(([kind, plugin]) => [
+    kind, plugin.effects?.createSessionScope?.(sessionRuntime) ?? plugin.effects,
+  ]));
 
   const toggleCardVote = (cardId: string, vote: 'up' | 'down'): void => {
     store.setState((state) => ({
@@ -352,7 +372,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
 
   const updateCandidateCard = (
     cardId: string,
-    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags'>>,
+    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags' | 'review'>>,
   ): void => {
     store.setState((state) => ({
       cards: applyCardPatch(state.cards, cardId, patch),
@@ -418,16 +438,14 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
 
   const startChat = async (nodeId: string, text: string): Promise<void> => {
     const node = store.getState().workflow?.nodes.find((item) => item.id === nodeId);
-    const session = node ? builtinNodePlatform.lookup(node.kind)?.effects?.session : undefined;
+    const session = node ? sessionScopes.get(node.kind)?.session : undefined;
     if (!session) return;
     await session.send(nodeId, text, hostCapabilities());
   };
 
   const stopChat = (nodeId: string): void => {
     const node = store.getState().workflow?.nodes.find((item) => item.id === nodeId);
-    builtinNodePlatform.lookup(node?.kind ?? '')?.effects?.session?.stop(nodeId, hostCapabilities());
-    chatOps.get(nodeId)?.abort();
-    chatOps.delete(nodeId);
+    sessionScopes.get(node?.kind ?? '')?.session?.stop(nodeId, hostCapabilities());
   };
 
   const setChatSkill = (nodeId: string, skillId: string): void => {
@@ -437,7 +455,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
 
   const removeChatTurns = (nodeId: string, turnIndexes: readonly number[]): void => {
     const node = store.getState().workflow?.nodes.find((item) => item.id === nodeId);
-    builtinNodePlatform.lookup(node?.kind ?? '')?.effects?.session?.removeTurns(
+    sessionScopes.get(node?.kind ?? '')?.session?.removeTurns(
       nodeId,
       turnIndexes,
       hostCapabilities(),
@@ -452,12 +470,20 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
       item.workflowId === workflow?.id && item.nodeId === nodeId
     ));
     if (!session) return;
+    if (chatOps.has(chatOperationKey(nodeId, session.activeConversationId))) return;
     const offset = openingContextTurnOffset(activeConversationMessages(session));
     removeChatTurns(nodeId, [turnIndex + offset]);
     await startChat(nodeId, trimmed);
   };
 
   const hostCapabilities = (): NodeHostCapabilities => createNodeHostCapabilities({
+    getChatActivities: () => store.getState().chatActivities,
+    setChatActivity: (key, activity) => store.setState((state) => {
+      const chatActivities = { ...state.chatActivities };
+      if (activity) chatActivities[key] = activity;
+      else delete chatActivities[key];
+      return { chatActivities };
+    }),
     getWorkflow: () => store.getState().workflow,
     getCards: () => store.getState().cards,
     getRuns: () => store.getState().runs,
@@ -506,6 +532,14 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     && store.getState().workflow?.id === operation.workflowId
     && operation.workflowActivationGeneration === workflowActivationGeneration
   );
+
+  const reportNodeProgress = (operation: ActiveOperation, progress: ExecutionProgress) => {
+    if (!isOwned(operation) || operation.controller.signal.aborted) return;
+    store.setState((state) => ({ nodeProgress: { ...state.nodeProgress, [operation.nodeId]: progress } }));
+  };
+  const clearNodeProgress = (nodeId: string) => store.setState((state) => {
+    const nodeProgress = { ...state.nodeProgress }; delete nodeProgress[nodeId]; return { nodeProgress };
+  });
 
   const regenerateStructuredPlanGraph = async (
     nodeId: string,
@@ -678,6 +712,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
         cards: latest.cards,
         signal: operation.controller.signal,
         runner: registration.runner,
+        reportProgress: (progress) => reportNodeProgress(operation, progress),
         runtime: {
           getAiClient: () => dependencies.getAiClient?.(),
           id: dependencies.id,
@@ -813,11 +848,14 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     } finally {
       if (nodeOps.get(node.id) === operation) {
         nodeOps.delete(node.id);
+        clearNodeProgress(node.id);
       }
     }
   };
 
   store = createStore<AppState>((set, get) => ({
+    chatActivities: {},
+    nodeProgress: {},
     workflows: [],
     runs: [],
     cards: [],
@@ -1307,6 +1345,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
       const operation = nodeOps.get(nodeId);
       nodeOps.delete(nodeId);
       operation?.controller.abort();
+      clearNodeProgress(nodeId);
       updateWorkflow((currentWorkflow) => markDescendantsStale({
         ...currentWorkflow,
         nodes: currentWorkflow.nodes.map((item) => item.id === nodeId
@@ -1343,6 +1382,12 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     },
 
     stopNode(nodeId) {
+      const capabilities = hostCapabilities();
+      const scope = sessionScopes.get(capabilities.workflow.getNode(nodeId)?.kind ?? '');
+      for (const conversation of capabilities.sessions.getSession(nodeId)?.conversations ?? []) {
+        scope?.session?.stop(nodeId, capabilities, conversation.id);
+      }
+      clearNodeProgress(nodeId);
       controlFlow.stop(nodeId);
     },
 
@@ -1472,5 +1517,32 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     stopNode: (nodeId) => nodeOps.get(nodeId)?.controller.abort(),
   });
 
+  let observedActivation = workflowActivationGeneration;
+  store.subscribe((state, previous) => {
+    if (state.workflow === previous.workflow && observedActivation === workflowActivationGeneration) return;
+    const switched = state.workflow?.id !== previous.workflow?.id || observedActivation !== workflowActivationGeneration;
+    observedActivation = workflowActivationGeneration;
+    if (switched) {
+      sessionScopes.forEach((scope) => scope?.cancelAll?.());
+      chatOps.forEach((controller) => controller.abort());
+      chatOps.clear();
+      nodeOps.forEach((operation) => operation.controller.abort());
+      nodeOps.clear();
+      store.setState({ chatActivities: {}, nodeProgress: {} });
+    } else {
+      for (const node of previous.workflow?.nodes ?? []) {
+        if (state.workflow?.nodes.some((item) => item.id === node.id)) continue;
+        sessionScopes.get(node.kind)?.cancelAll?.(node.id);
+        for (const [key, controller] of chatOps) {
+          if (JSON.parse(key)[0] === node.id) { controller.abort(); chatOps.delete(key); }
+        }
+        nodeOps.get(node.id)?.controller.abort();
+        nodeOps.delete(node.id);
+        const chatActivities = Object.fromEntries(Object.entries(store.getState().chatActivities).filter(([, activity]) => activity.nodeId !== node.id));
+        store.setState({ chatActivities });
+        clearNodeProgress(node.id);
+      }
+    }
+  });
   return store;
 }

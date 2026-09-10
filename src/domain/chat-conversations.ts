@@ -250,6 +250,35 @@ function messagesThroughItem(
   return completeQaTurns(conversation.messages).slice(0, index + 1).flat();
 }
 
+function conversationHasUserContent(conversation: ChatConversation | undefined): boolean {
+  return (conversation?.messages ?? []).some((message) => (
+    message.role !== 'system' && !isOpeningContextMessage(message)
+  ));
+}
+
+export function startNewConversation(
+  session: ChatSession,
+  clock: ChatClock,
+): ChatSession {
+  const active = activeConversation(session);
+  if (active && !conversationHasUserContent(active)) {
+    return session.activeConversationId === active.id
+      ? session
+      : { ...session, activeConversationId: active.id, updatedAt: clock.now() };
+  }
+  const createdAt = clock.now();
+  const conversation = createEmptyConversation({
+    id: clock.id(),
+    createdAt,
+  }, session.conversations.length);
+  return {
+    ...session,
+    conversations: [...session.conversations, conversation],
+    activeConversationId: conversation.id,
+    updatedAt: createdAt,
+  };
+}
+
 export function setActiveConversation(
   session: ChatSession,
   conversationId: string,

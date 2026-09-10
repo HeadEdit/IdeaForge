@@ -60,6 +60,21 @@ function IconButton({ label, children, onClick, disabled, disabledReason, showLa
 
 function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: WorkbenchProps) {
   const workflow = useStore(store, (state) => state.workflow);
+  const nodeProgress = useStore(store, (state) => state.nodeProgress);
+  const chatActivities = useStore(store, (state) => state.chatActivities);
+  const progress = useMemo(() => {
+    const result = { ...nodeProgress };
+    const byNode = new Map<string, NonNullable<typeof chatActivities>[string][]>();
+    for (const activity of Object.values(chatActivities ?? {})) {
+      byNode.set(activity.nodeId, [...(byNode.get(activity.nodeId) ?? []), activity]);
+    }
+    for (const [nodeId, activities] of byNode) {
+      result[nodeId] = activities.length === 1 ? activities[0]!.progress : {
+        stage: `${activities.length} 个对话运行中`, percent: activities.reduce((sum, item) => sum + item.progress.percent, 0) / activities.length, estimated: true,
+      };
+    }
+    return result;
+  }, [nodeProgress, chatActivities]);
   const cards = useStore(store, (state) => state.cards);
   const runs = useStore(store, (state) => state.runs);
   const sessions = useStore(store, (state) => state.sessions);
@@ -100,7 +115,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
     onDelete: requestDeleteNode,
     onDisconnectPort: disconnectPort,
     onRun: executionAvailable ? runNode : undefined,
-  }, selectedNodeIds, cards, documents) : [], [workflow, openNode, requestDeleteNode, disconnectPort, runNode, executionAvailable, selectedNodeIds, cards, documents]);
+  }, selectedNodeIds, cards, documents, progress) : [], [workflow, openNode, requestDeleteNode, disconnectPort, runNode, executionAvailable, selectedNodeIds, cards, documents, progress]);
   const flowEdges = useMemo(() => workflow ? toFlowEdges(workflow) : [], [workflow]);
   const focusedNodeId = selectedNodeIds.at(-1);
   const selectedNode = workflow?.nodes.find((node) => node.id === focusedNodeId);
@@ -289,6 +304,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           {connectionFeedback && <div className="connection-feedback" role="status" aria-live="polite">{connectionFeedback}</div>}
         </section>
         <NodeInspector
+          progress={selectedNode ? progress[selectedNode.id] : undefined}
           node={selectedNode}
           workflow={workflow}
           cards={cards}
@@ -298,7 +314,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           onOpen={canOpenSelectedNode ? openNode : undefined}
         />
       </div>
-      <StatusBar nodes={workflow?.nodes ?? []} runs={runs} saveStatus={saveStatus} onRetry={() => void store.getState().saveNow()} />
+      <StatusBar nodes={workflow?.nodes ?? []} progress={progress} runs={runs} saveStatus={saveStatus} onRetry={() => void store.getState().saveNow()} />
       <ReferenceLibraryDialog open={libraryOpen} onClose={() => setLibraryOpen(false)} store={store} />
       <DeleteDialog open={deleteOpen} impact={{ ...deleteImpact, scope: deleteTarget ? 'node' : 'workflow' }} onClose={() => setDeleteOpen(false)} onConfirm={async () => { if (deleteTarget) await store.getState().deleteNode(deleteTarget); else await store.getState().deleteWorkflow(); setDeleteOpen(false); setDeleteTarget(undefined); }} />
     </div>

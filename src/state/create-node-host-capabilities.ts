@@ -1,4 +1,5 @@
 import type { AiClient } from '../ai/client';
+import { chatOperationKey, type ChatActivity } from '../domain/execution-progress';
 import {
   activeConversationMessages,
   buildChatTextStructOutput,
@@ -10,6 +11,7 @@ import {
   omitConversationTurns,
   renameConversation as renameChatConversation,
   setActiveConversation as setActiveChatConversation,
+  startNewConversation,
   unexportConversationItem,
   updateItemTitle as updateChatItemTitle,
   withActiveConversationMessages,
@@ -31,6 +33,8 @@ import { cardCollectionInputIds } from '../domain/workflow-io';
 import type { ConfigPatchOptions, ConfigPatchResult, NodeHostCapabilities } from '../nodes/types';
 
 export interface NodeHostCapabilityAdapters {
+  getChatActivities?(): Record<string, ChatActivity>;
+  setChatActivity?(key: string, activity: ChatActivity | undefined): void;
   getWorkflow(): Workflow | undefined;
   getCards(): readonly CandidateCard[];
   getRuns(): readonly NodeRun[];
@@ -44,7 +48,7 @@ export interface NodeHostCapabilityAdapters {
   toggleVote(cardId: string, vote: 'up' | 'down'): void;
   updateCard(
     cardId: string,
-    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags'>>,
+    patch: Partial<Pick<CandidateCard, 'title' | 'concept' | 'content' | 'tags' | 'review'>>,
   ): void;
   deleteCard(variableNodeId: string, cardId: string): void;
   applyScores(updates: { cardId: string; score: CardScore }[]): void;
@@ -77,6 +81,13 @@ function boundCardCollectionSource(
   const source = workflow?.nodes.find((item) => item.id === edge.sourceNodeId);
   if (!source || source.output?.type !== 'CardCollection') return undefined;
   return source;
+}
+
+function chatSkillId(node: WorkflowNode): string {
+  const skillId = node.config && typeof node.config === 'object' && 'skillId' in node.config
+    ? node.config.skillId
+    : undefined;
+  return typeof skillId === 'string' ? skillId : '';
 }
 
 function appendUnique(existing: readonly string[], incoming: readonly string[]): string[] {
@@ -179,6 +190,8 @@ export function createNodeHostCapabilities(
       },
     },
     sessions: {
+      getActivity: (nodeId, conversationId) => adapters.getChatActivities?.()[chatOperationKey(nodeId, conversationId)],
+      setActivity: (key, activity) => adapters.setChatActivity?.(key, activity),
       getSession: (nodeId) => {
         const workflow = adapters.getWorkflow();
         const found = adapters.getSessions().find((session) => (
@@ -191,9 +204,7 @@ export function createNodeHostCapabilities(
       setSkill: (nodeId, skillId) => adapters.setChatSkill(nodeId, skillId),
       editLastMessage: (nodeId, turnIndex, text) => adapters.editChatLastMessage(nodeId, turnIndex, text),
       beginTurn: (nodeId, question, skillId) => {
-        adapters.chatOps.get(nodeId)?.abort();
         const controller = adapters.createAbortController();
-        adapters.chatOps.set(nodeId, controller);
         const workflow = adapters.getWorkflow();
         if (!workflow) return controller;
         adapters.updateWorkflow((current) => ({
@@ -218,6 +229,9 @@ export function createNodeHostCapabilities(
             conversationId: adapters.id(),
           });
         const history = activeConversationMessages(shaped).filter((message) => message.role !== 'system');
+        const key = chatOperationKey(nodeId, shaped.activeConversationId);
+        adapters.chatOps.get(key)?.abort();
+        adapters.chatOps.set(key, controller);
         const optimisticSession: ChatSession = {
           ...withActiveConversationMessages(
             shaped,
@@ -236,17 +250,28 @@ export function createNodeHostCapabilities(
       completeTurn: (nodeId, session) => {
         const workflow = adapters.getWorkflow();
         if (!workflow) return;
+        const live = adapters.getSessions().find((item) => item.workflowId === workflow.id && item.nodeId === nodeId);
+        if (!live) return;
+        const target = session.conversations.find((item) => item.id === session.activeConversationId);
+        if (!target || !live.conversations.some((item) => item.id === target.id)) return;
+        const merged = { ...live, updatedAt: session.updatedAt, conversations: live.conversations.map((item) => (
+          item.id === target.id ? { ...item, messages: target.messages, itemIds: target.itemIds,
+            name: /^对话 \d+$/.test(item.name) ? target.name : item.name } : item
+        )) };
+        adapters.chatOps.delete(chatOperationKey(nodeId, target.id));
         adapters.setSessions([
           ...adapters.getSessions().filter((item) => !(item.workflowId === workflow.id && item.nodeId === nodeId)),
-          session,
+          merged,
         ]);
         adapters.markDirty();
       },
-      failTurn: (nodeId, status) => {
+      failTurn: (nodeId, status, conversationId) => {
+        if (conversationId) adapters.chatOps.delete(chatOperationKey(nodeId, conversationId));
+        const stillRunning = [...adapters.chatOps.keys()].some((key) => JSON.parse(key)[0] === nodeId);
         adapters.updateWorkflow((current) => ({
           ...current,
           nodes: current.nodes.map((item) => item.id === nodeId
-            ? { ...item, status }
+            ? { ...item, status: stillRunning ? 'running' : status }
             : item),
         }));
       },
@@ -258,6 +283,7 @@ export function createNodeHostCapabilities(
         ));
         if (!existing) return;
         const shaped = ensureChatSessionShape(existing);
+        if (adapters.chatOps.has(chatOperationKey(nodeId, shaped.activeConversationId))) return;
         const nextSession = omitConversationTurns(
           shaped,
           shaped.activeConversationId,
@@ -285,6 +311,34 @@ export function createNodeHostCapabilities(
           !removed.has(session.nodeId)
           && !session.referencedCardIds.some((cardId) => removedCards.has(cardId))
         ));
+      },
+      createConversation: (nodeId) => {
+        const workflow = adapters.getWorkflow();
+        if (!workflow) return;
+        const node = workflow.nodes.find((item) => item.id === nodeId);
+        if (!node) return;
+        const existing = adapters.getSessions().find((session) => (
+          session.workflowId === workflow.id && session.nodeId === nodeId
+        ));
+        const createdAt = adapters.now();
+        const shaped = existing ? ensureChatSessionShape(existing) : undefined;
+        const next = shaped
+          ? startNewConversation(shaped, { id: () => adapters.id(), now: () => createdAt })
+          : createChatSession({
+            id: adapters.id(),
+            workflowId: workflow.id,
+            nodeId,
+            skillId: chatSkillId(node),
+            createdAt,
+            updatedAt: createdAt,
+            conversationId: adapters.id(),
+          });
+        if (next === shaped) return;
+        adapters.setSessions([
+          ...adapters.getSessions().filter((item) => !(item.workflowId === workflow.id && item.nodeId === nodeId)),
+          next,
+        ]);
+        adapters.markDirty();
       },
       setActiveConversation: (nodeId, conversationId) => {
         const workflow = adapters.getWorkflow();
@@ -332,6 +386,7 @@ export function createNodeHostCapabilities(
         adapters.markDirty();
       },
       deleteConversation: (nodeId, conversationId) => {
+        if (adapters.chatOps.has(chatOperationKey(nodeId, conversationId))) return;
         const workflow = adapters.getWorkflow();
         if (!workflow) return;
         const existing = adapters.getSessions().find((session) => (
@@ -362,7 +417,7 @@ export function createNodeHostCapabilities(
         if (!workflow) return { error: 'missing-workflow' };
         const node = workflow.nodes.find((item) => item.id === nodeId);
         if (!node) return { error: 'missing-node' };
-        if (mode === 'single-turn' && node.status === 'running') {
+        if (mode === 'single-turn' && adapters.chatOps.has(chatOperationKey(nodeId, conversationId))) {
           return { error: 'busy' };
         }
         const existing = adapters.getSessions().find((session) => (

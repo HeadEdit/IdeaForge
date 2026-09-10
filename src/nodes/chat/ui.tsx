@@ -1,9 +1,12 @@
-import { Button, Cascader, Checkbox, Dropdown } from 'antd';
-import { ArrowUp, Copy, Download, MessageSquareText, Pencil, Send, Square, Trash2, X } from 'lucide-react';
+import { Button, Cascader, Checkbox, Dropdown, Switch } from 'antd';
+import { ArrowUp, Copy, Download, MessageSquareText, Pencil, Plus, Send, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 
 import type { ChatMessage } from '../../domain/model';
+import { chatOperationKey } from '../../domain/execution-progress';
+import { AgentTimeline } from '../../features/chat/AgentTimeline';
+import { ExecutionProgressView } from '../../components/ExecutionProgressView';
 import { activeConversationMessages, completeQaTurns, exportedTurnId, isOpeningContextMessage } from '../../domain/chat-conversations';
 import { ensureChatSessionShape } from '../../domain/chat-session-migrate';
 import { groupChatTurns, NO_CHAT_SKILL } from '../../domain/chat-turns';
@@ -33,13 +36,14 @@ export function ChatDialog({
 }) {
   const workflow = useStore(store, (state) => state.workflow);
   const sessions = useStore(store, (state) => state.sessions);
+  const activities = useStore(store, (state) => state.chatActivities);
   const cards = useStore(store, (state) => state.cards ?? []);
   const executionAvailable = store.getState().isExecutionAvailable();
   const capabilities = useMemo(() => store.getState().getHostCapabilities(), [store]);
-  const [text, setText] = useState('');
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [editText, setEditText] = useState('');
   const [editingTurnIndex, setEditingTurnIndex] = useState<number>();
-  const [pending, setPending] = useState<{ nodeId: string; text: string }>();
+  const [pendingByConversation, setPending] = useState<Record<string, { text: string; token: symbol }>>({});
   const [copiedIndex, setCopiedIndex] = useState<number>();
   const [highlightedTurnId, setHighlightedTurnId] = useState<string>();
   const [deleting, setDeleting] = useState(false);
@@ -56,6 +60,11 @@ export function ChatDialog({
     () => (session ? activeConversationMessages(session) : []),
     [session],
   );
+  const conversationKey = chatOperationKey(nodeId, session?.activeConversationId ?? 'new');
+  const activity = activities?.[conversationKey];
+  const pending = pendingByConversation[conversationKey];
+  const text = drafts[conversationKey] ?? '';
+  const setText = (value: string) => setDrafts((current) => ({ ...current, [conversationKey]: value }));
   const storedOpening = storedMessages.find(isOpeningContextMessage);
   const openingTurnOffset = storedMessages[0] && isOpeningContextMessage(storedMessages[0]) ? 1 : 0;
   const hasTranscript = storedMessages.some((message) => (
@@ -68,13 +77,14 @@ export function ChatDialog({
     return formatNodeContext([], texts.join('\n\n'));
   }, [storedOpening, hasTranscript, workflow, nodeId, cards]);
   const openingContent = storedOpening?.content ?? liveOpening;
-  const busy = node?.status === 'running' || pending?.nodeId === nodeId;
+  const busy = !!activity || !!pending || (activities === undefined && node?.status === 'running');
+  const nodeBusy = node?.status === 'running';
   const messages = useMemo(() => {
     const visible = storedMessages.filter((message) => (
       message.role !== 'system' && !isOpeningContextMessage(message)
     ));
     const last = visible[visible.length - 1];
-    if (pending?.nodeId === nodeId && pending.text && !(last?.role === 'user' && last.content === pending.text)) {
+    if (pending?.text && !(last?.role === 'user' && last.content === pending.text)) {
       return [...visible, { role: 'user' as const, content: pending.text }];
     }
     return visible;
@@ -83,7 +93,6 @@ export function ChatDialog({
   const skillOptions = listChatSkillMenuOptions();
 
   useEffect(() => {
-    setText('');
     setEditText('');
     setEditingTurnIndex(undefined);
     setDeleting(false);
@@ -92,7 +101,6 @@ export function ChatDialog({
   }, [nodeId]);
 
   useEffect(() => {
-    setText('');
     setEditText('');
     setEditingTurnIndex(undefined);
     setDeleting(false);
@@ -128,12 +136,17 @@ export function ChatDialog({
       return;
     }
     const question = text.trim();
-    setPending({ nodeId: node.id, text: question });
+    const token = Symbol('pending');
+    const key = conversationKey;
+    setPending((current) => ({ ...current, [key]: { text: question, token } }));
     setText('');
     try {
       await capabilities.sessions.send(node.id, question);
     } finally {
-      setPending((current) => (current?.nodeId === node.id ? undefined : current));
+      setPending((current) => {
+        if (current[key]?.token !== token) return current;
+        const next = { ...current }; delete next[key]; return next;
+      });
     }
   };
 
@@ -216,6 +229,18 @@ export function ChatDialog({
       <div className={`chat-dialog${editing ? ' is-editing' : ''}${busy ? ' is-busy' : ''}`}>
         <aside className="chat-dialog__sidebar" aria-label="聊天侧栏">
           <nav className="chat-dialog__sidebar-section chat-dialog__sidebar-section--conversations" aria-label="对话列表">
+          <div className="chat-dialog__sidebar-heading">
+            <span>对话</span>
+            <button
+              type="button"
+              className="chat-dialog__new-conversation"
+              aria-label="创建新对话"
+              onClick={() => capabilities.sessions.createConversation(nodeId)}
+            >
+              <Plus size={14} />
+              新对话
+            </button>
+          </div>
           {conversations.length === 0 ? (
             <p className="chat-dialog__sidebar-empty">暂无对话</p>
           ) : conversations.map((conversation) => (
@@ -239,12 +264,13 @@ export function ChatDialog({
                 }}
               >
                 {conversation.name}
+                {activities?.[chatOperationKey(nodeId, conversation.id)] && <small> · 运行中</small>}
               </button>
               <button
                 type="button"
                 className="chat-dialog__conversation-delete"
                 aria-label={`删除对话 ${conversation.name}`}
-                disabled={busy}
+                disabled={!!activities?.[chatOperationKey(nodeId, conversation.id)]}
                 onClick={() => capabilities.sessions.deleteConversation(nodeId, conversation.id)}
               >
                 <Trash2 size={14} />
@@ -356,6 +382,7 @@ export function ChatDialog({
                   )}
                   <div className="chat-dialog__turn-body">
                     {turn.map((message, messageIndex) => (
+                      <div key={`${message.role}-${messageIndex}`}>
                       <ChatBubble
                         key={`${message.role}-${messageIndex}`}
                         message={message}
@@ -398,6 +425,8 @@ export function ChatDialog({
                         )}
                         branchDisabled={busy || !session}
                       />
+                      {message.agentEvents && <AgentTimeline events={message.agentEvents} />}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -406,6 +435,8 @@ export function ChatDialog({
             {busy && (
               <div className="chat-dialog__assistant-wrap">
                 <p className="chat-dialog__thinking">正在思考</p>
+                {activity && <ExecutionProgressView progress={activity.progress} />}
+                {activity && <AgentTimeline events={activity.events} />}
                 <div className="chat-dialog__typing" aria-label="正在生成">
                   <span /><span /><span />
                 </div>
@@ -445,21 +476,48 @@ export function ChatDialog({
           <>
             {!editing ? (
               <div className="chat-dialog__composer">
-                <label className="chat-dialog__skill">
-                  技能
-                  <Cascader
-                    allowClear={false}
-                    aria-label="对话技能"
-                    value={chatSkillIdToMenuPath(skillId)}
-                    options={skillOptions}
-                    displayRender={(labels) => labels[labels.length - 1]}
-                    onChange={(path) => {
-                      if (!path?.length) return;
-                      capabilities.sessions.setSkill(nodeId, chatSkillMenuPathToId(path));
+                <div className="chat-dialog__composer-tools">
+                  <label className="chat-dialog__skill">
+                    技能
+                    <Cascader
+                      disabled={nodeBusy}
+                      allowClear={false}
+                      aria-label="对话技能"
+                      value={chatSkillIdToMenuPath(skillId)}
+                      options={skillOptions}
+                      displayRender={(labels) => labels[labels.length - 1]}
+                      onChange={(path) => {
+                        if (!path?.length) return;
+                        capabilities.sessions.setSkill(nodeId, chatSkillMenuPathToId(path));
+                      }}
+                      style={{ width: '100%' }}
+                    />
+                  </label>
+                  <Checkbox
+                    aria-label="联网搜索"
+                    title="仅支持 DeepSeek 模型"
+                    checked={parsed.success && parsed.data.webSearch}
+                    disabled={nodeBusy}
+                    onChange={(event) => {
+                      capabilities.workflow.patchConfig(nodeId, { webSearch: event.target.checked });
                     }}
-                    style={{ width: '100%' }}
-                  />
-                </label>
+                  >
+                    联网搜索
+                  </Checkbox>
+                  <label className="chat-dialog__agent-toggle">
+                    <Switch
+                      aria-label="Agent 模式"
+                      checked={parsed.success && parsed.data.agentMode}
+                      disabled={nodeBusy}
+                      onChange={(agentMode) => capabilities.workflow.patchConfig(nodeId, { agentMode })}
+                      size="small"
+                    />
+                    Agent 模式
+                  </label>
+                </div>
+                {parsed.success && parsed.data.agentMode && (
+                  <div className="chat-dialog__agent-hint">可查询、新建、修改和删除当前资料库文档；操作会自动保存。</div>
+                )}
                 <div className="chat-dialog__input-row">
                   <textarea
                     aria-label="输入消息"
@@ -479,7 +537,11 @@ export function ChatDialog({
                     shape="circle"
                     aria-label={busy ? '停止生成' : '发送'}
                     icon={busy ? <Square size={15} /> : <Send size={15} />}
-                    onClick={() => (busy ? capabilities.sessions.stop(nodeId) : void send())}
+                    onClick={() => {
+                      if (!busy) { void send(); return; }
+                      capabilities.sessions.stop(nodeId);
+                      setPending((current) => { const next = { ...current }; delete next[conversationKey]; return next; });
+                    }}
                     disabled={!busy && (!executionAvailable || !text.trim())}
                   />
                 </div>

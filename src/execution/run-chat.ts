@@ -1,4 +1,5 @@
 import type { AiClient } from '../ai/client';
+import type { AgentEvent } from '../domain/execution-progress';
 import { AiClientError } from '../ai/client';
 import { buildChatMessages } from '../ai/prompts';
 import type { CandidateCard, ChatSession } from '../domain/model';
@@ -10,8 +11,10 @@ import {
 import { ensureChatSessionShape } from '../domain/chat-session-migrate';
 import { getSkill } from '../skills';
 import { NO_CHAT_SKILL } from '../domain/chat-turns';
+import { runChatAgent, type AgentLibrary, type AgentResult } from './chat-agent';
 
 export interface RunChatInput {
+  onAgentEvent?: (event: AgentEvent) => void;
   workflowId: string;
   nodeId: string;
   skillId: string;
@@ -19,6 +22,9 @@ export interface RunChatInput {
   question: string;
   referencedCards: readonly CandidateCard[];
   referencedText?: string;
+  webSearch?: boolean;
+  agentMode?: boolean;
+  agentLibrary?: AgentLibrary;
   signal: AbortSignal;
 }
 
@@ -34,6 +40,17 @@ export interface RunChatDependencies {
   getClient: () => AiClient | undefined;
   id: () => string;
   now: () => string;
+}
+
+async function searchThenComplete(
+  client: AiClient,
+  messages: Parameters<AiClient['complete']>[0],
+  signal: AbortSignal,
+): Promise<string> {
+  if (!client.completeWithWebSearch) {
+    throw new AiClientError('unsupported', false);
+  }
+  return client.completeWithWebSearch(messages, { signal });
 }
 
 function failed(
@@ -81,14 +98,24 @@ export async function runChat(
   );
 
   try {
-    const reply = await client.complete(messages, { signal: input.signal });
+    let agent: AgentResult | undefined;
+    if (input.agentMode) {
+      if (!input.agentLibrary) throw new AiClientError('unsupported', false);
+      agent = await runChatAgent(client, messages, input.agentLibrary, input.signal, input.webSearch, input.onAgentEvent);
+    }
+    const reply = agent ? agent.reply : input.webSearch
+      ? await searchThenComplete(client, messages.map(({ role, content }) => ({ role, content })), input.signal)
+      : await client.complete(messages.map(({ role, content }) => ({ role, content })), { signal: input.signal });
+    if (!agent && input.signal.aborted) {
+      return { status: 'stopped', startedAt, finishedAt: deps.now() };
+    }
     const finishedAt = deps.now();
     const referencedCardIds = input.referencedCards.map((card) => card.id);
     const session: ChatSession = shaped
       ? {
         ...withActiveConversationMessages(shaped, [
           ...messages.filter((message) => message.role !== 'system'),
-          { role: 'assistant', content: reply },
+          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : {}) },
         ], finishedAt),
         skillId,
         referencedCardIds,
@@ -104,10 +131,10 @@ export async function runChat(
         conversationId: deps.id(),
         messages: [
           ...messages.filter((message) => message.role !== 'system'),
-          { role: 'assistant', content: reply },
+          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : {}) },
         ],
       });
-    return { status: 'succeeded', startedAt, finishedAt, session };
+    return { status: agent?.status ?? 'succeeded', startedAt, finishedAt, session, ...(agent?.errorKind ? { errorKind: agent.errorKind } : {}) };
   } catch (error) {
     const finishedAt = deps.now();
     if (

@@ -15,6 +15,9 @@ const GAME_SKILL_IDS = [
   'gameplay-designer',
   'numeric-designer',
   'system-designer',
+  'design-review',
+  'playtest',
+  'quick-design',
 ] as const;
 
 const GENERAL_SKILL_IDS = ['brainstorm'] as const;
