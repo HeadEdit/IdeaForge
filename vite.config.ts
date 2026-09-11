@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(root, 'src'),
+      '@test': path.resolve(root, 'test'),
     },
   },
   // Keep the production bundle usable from a local file:// URL as well as static hosting.

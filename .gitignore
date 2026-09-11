@@ -28,4 +28,42 @@ npm-debug.log*
 
 # Local tooling caches
 .cache/
+.vite/
+.vitest/
+.turbo/
+.eslintcache
+.superpowers/
+.worktrees/
+tmp/
+temp/
+*.tmp
+*.temp
+# Test output
+test-results/
+playwright-report/
+coverage/
 docs/superpowers
+
+# Test code and configuration
+test/
+tests/
+e2e/
+__tests__/
+*.test.*
+*.spec.*
+vitest.config.*
+playwright.config.*
+# Development documentation and specifications
+docs/
+openspec/
+spec.md
+# Local AI assistant configuration
+.codex/
+.cursor/
+.claude/
+.continue/
+.windsurf/
+.aider*
+AGENTS.md
+CLAUDE.md
+GEMINI.md

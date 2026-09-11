@@ -33,7 +33,7 @@ npm run dev
 
 For a production build, run `npm run build` and serve the generated `dist/` directory with any static HTTP server.
 
-Use a current desktop Chrome or Edge browser. Viewports below 1024px show a desktop-browser notice.
+Use a current Chrome or Edge browser. The workbench supports mobile, tablet, and desktop viewports at least 360px wide; mobile exposes the complete feature set through the top command menu and bottom navigation.
 
 ## Configure AI
 
