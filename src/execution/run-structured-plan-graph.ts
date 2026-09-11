@@ -23,8 +23,8 @@ import {
   type StructuredPlanModuleClassification,
 } from '../nodes/structured-plan/format';
 import type { Skill } from '../skills';
+import { AI_REQUEST_LIMITS } from '../ai/request-config';
 
-const GRAPH_MAX_TOKENS = 8192;
 const GRAPH_TEMPERATURE = 0.2;
 
 export interface StructuredPlanGraphGenerationResult {
@@ -66,7 +66,7 @@ export async function generateStructuredPlanDependencyGraph(input: {
       {
         signal: input.signal,
         temperature: GRAPH_TEMPERATURE,
-        maxTokens: GRAPH_MAX_TOKENS,
+        maxTokens: AI_REQUEST_LIMITS.structuredPlan.graph,
       },
     );
   } catch (error) {

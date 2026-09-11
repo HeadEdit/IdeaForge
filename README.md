@@ -49,7 +49,17 @@ API Key 保存在本机浏览器的 IndexedDB 中，便于本地使用，但不�
 docker compose -f docker-compose.searxng.yml up -d
 ```
 
-启动后，在 **AI 设置** 中把“搜索提供商”选为 **SearXNG**，地址填写 `http://localhost:8080`。SearXNG 的 JSON 接口应能通过 `http://localhost:8080/search?q=test&format=json` 访问。部署到其他机器时，请确保实例允许浏览器跨域请求，或通过反向代理与前端使用同源 HTTPS 地址；公共实例还可能有频率和隐私限制。
+启动后，在 **AI 设置** 中把“搜索提供商”选为 **SearXNG**。使用 `npm run dev` 本地开发时，建议地址填写 `/searxng`，Vite 会把请求代理到 `http://localhost:8080`，避免浏览器 CORS 限制。也可以填写 `http://localhost:8080`，但此时 SearXNG 必须自行配置允许当前前端来源的 CORS 响应头。SearXNG 的 JSON 接口应能通过 `http://localhost:8080/search?q=test&format=json` 访问。部署到其他机器时，请通过反向代理让前端和 SearXNG 使用同源 HTTPS 地址；公共实例还可能有频率和隐私限制。
+
+使用 SearXNG 联网搜索时，工作台会先让模型把复杂需求改写成多个互补的搜索词，再合并去重结果；包含“近一年”等时间条件时会同时传递年度时间过滤。查询规划失败时会自动退回原始问题搜索。Tavily 仍使用原始用户问题，不经过这层改写。
+
+想让联网搜索继续读取文章正文，可在另一个终端启动可选的本地网页抓取服务：
+
+```bash
+npm run page-fetch
+```
+
+启动后保持 SearXNG 地址为 `/searxng`。搜索会尝试抓取前 3 个结果并提取正文，抓取失败时自动回退到 SearXNG 摘要。抓取服务只监听本机地址，并限制请求协议、响应大小和超时时间；生产部署时应将它放在受控的后端或反向代理之后。
 
 ## 开始搭建工作流
 

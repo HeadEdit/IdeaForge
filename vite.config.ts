@@ -15,4 +15,17 @@ export default defineConfig({
   },
   // Keep the production bundle usable from a local file:// URL as well as static hosting.
   base: './',
+  server: {
+    proxy: {
+      '/searxng': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (requestPath) => requestPath.replace(/^\/searxng/, ''),
+      },
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
+  },
 });

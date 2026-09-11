@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AiClient } from '../ai/client';
 import type { ChatMessage } from '../domain/model';
 import { chatSkillRouterPrompts } from '../prompts';
+import { AI_REQUEST_LIMITS } from '../ai/request-config';
 import { listChatSkills } from '../skills';
 
 const recommendationSchema = z.discriminatedUnion('action', [
@@ -42,7 +43,7 @@ export async function recommendChatSkill(input: {
         chatSkillRouterPrompts.catalog(skills),
         chatSkillRouterPrompts.user(input.currentSkillId, input.recentMessages, input.question),
       ].join('\n\n') },
-    ], { signal: input.signal, temperature: 0, maxTokens: 200 });
+    ], { signal: input.signal, temperature: 0, maxTokens: AI_REQUEST_LIMITS.skillRecommendation });
   } catch {
     return undefined;
   }

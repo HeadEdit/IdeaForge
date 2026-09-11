@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { AiClientError, type AiClient } from '../ai/client';
 import { getAiErrorMessage } from '../ai/error-messages';
+import { AI_REQUEST_LIMITS } from '../ai/request-config';
 import type { AiTool, AiToolCall, AiToolMessage } from '../ai/tool-calling';
 import type { ChatMessage, ReferenceDocument } from '../domain/model';
 import type { AgentEvent } from '../domain/execution-progress';
@@ -125,7 +126,7 @@ export async function runChatAgent(client: AiClient, history: ChatMessage[], lib
       assertActive(signal);
       const requestEvent: AgentEvent = { id: `request-${round}`, round: round + 1, kind: 'request', title: `第 ${round + 1} 轮模型请求`, status: 'running', startedAt: new Date().toISOString(), input: snapshot(messages) };
       emit(requestEvent);
-      const reply = await client.completeWithTools(messages, toolsFor(webSearch), { signal });
+      const reply = await client.completeWithTools(messages, toolsFor(webSearch), { signal, maxTokens: AI_REQUEST_LIMITS.tools });
       assertActive(signal);
       emit({ ...requestEvent, status: 'succeeded', finishedAt: new Date().toISOString() });
       emit({ id: `response-${round}`, round: round + 1, kind: 'response', title: `第 ${round + 1} 轮模型回复`, status: 'succeeded', startedAt: new Date().toISOString(), output: snapshot({ content: reply.content, tool_calls: reply.tool_calls }) });

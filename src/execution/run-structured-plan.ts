@@ -38,6 +38,7 @@ import type {
   NodeRunnerResult,
 } from './runner-types';
 import { generateStructuredPlanDependencyGraph } from './run-structured-plan-graph';
+import { AI_REQUEST_LIMITS } from '../ai/request-config';
 
 export interface StructuredPlanRunnerDependencies {
   getClient(): AiClient | undefined;
@@ -46,9 +47,6 @@ export interface StructuredPlanRunnerDependencies {
   onConfigPatch(nodeId: string, patch: Partial<StructuredPlanConfig>): void;
 }
 
-const TITLE_MAX_TOKENS = 8192;
-const MODULE_MAX_TOKENS = 24000;
-const REVIEW_MAX_TOKENS = 24000;
 const TEMPERATURE = 0.2;
 const MODULE_CONCURRENCY = 2;
 
@@ -279,7 +277,7 @@ export function createStructuredPlanRunner(
           undefined,
           () => client.complete(
             buildStructuredPlanTitleMessages(skill, titleData),
-            { signal: context.signal, temperature: TEMPERATURE, maxTokens: TITLE_MAX_TOKENS },
+            { signal: context.signal, temperature: TEMPERATURE, maxTokens: AI_REQUEST_LIMITS.structuredPlan.title },
           ),
           (raw) => {
             const parsed = parseStructuredPlanCandidates(raw);
@@ -308,7 +306,7 @@ export function createStructuredPlanRunner(
             stageData.targetTitle,
             () => client.complete(
               buildStructuredPlanDraftMessages(skill, stageData),
-              { signal: context.signal, temperature: TEMPERATURE, maxTokens: MODULE_MAX_TOKENS },
+              { signal: context.signal, temperature: TEMPERATURE, maxTokens: AI_REQUEST_LIMITS.structuredPlan.module },
             ),
             (raw) => parseStructuredPlanModule(raw, stageData.targetTitle),
           ),
@@ -326,7 +324,7 @@ export function createStructuredPlanRunner(
           undefined,
           () => client.complete(
             buildStructuredPlanReviewMessages(skill, reviewData),
-            { signal: context.signal, temperature: TEMPERATURE, maxTokens: REVIEW_MAX_TOKENS },
+            { signal: context.signal, temperature: TEMPERATURE, maxTokens: AI_REQUEST_LIMITS.structuredPlan.review },
           ),
           (raw) => parseStructuredPlanReviews(raw, titles),
         );
@@ -356,7 +354,7 @@ export function createStructuredPlanRunner(
             stageData.targetTitle,
             () => client.complete(
               buildStructuredPlanRevisionMessages(skill, stageData),
-              { signal: context.signal, temperature: TEMPERATURE, maxTokens: MODULE_MAX_TOKENS },
+              { signal: context.signal, temperature: TEMPERATURE, maxTokens: AI_REQUEST_LIMITS.structuredPlan.module },
             ),
             (raw) => parseStructuredPlanModule(raw, stageData.targetTitle),
           ),

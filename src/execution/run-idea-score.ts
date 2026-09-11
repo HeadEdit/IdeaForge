@@ -12,6 +12,7 @@ import {
 } from '../ai/schemas';
 import type { CandidateCard, CardScore } from '../domain/model';
 import { requireCardVariableSource } from '../domain/require-card-variable-source';
+import { AI_REQUEST_LIMITS } from '../ai/request-config';
 import type {
   IdeaScoreConfig,
   IdeaScoreReport,
@@ -26,7 +27,6 @@ import type { NodeRunner, NodeRunnerContext, NodeRunnerResult } from './runner-t
 
 const RETRYABLE = new Set(['network-or-cors', 'rate-limit', 'server', 'invalid-response']);
 const RETRY_DELAYS_MS = [100, 200];
-const SCORE_MAX_TOKENS = 4096;
 
 const passthroughMetrics = {
   requested: 1,
@@ -71,7 +71,7 @@ async function completeWithRetry(
       return await client.complete(messages, {
         signal: context.signal,
         temperature,
-        maxTokens: SCORE_MAX_TOKENS,
+        maxTokens: AI_REQUEST_LIMITS.ideaScore,
       });
     } catch (error) {
       lastError = error;
@@ -120,7 +120,7 @@ async function scoreBatchWithRetry(
       raw = await client.complete(messages, {
         signal: context.signal,
         temperature,
-        maxTokens: SCORE_MAX_TOKENS,
+        maxTokens: AI_REQUEST_LIMITS.ideaScore,
       });
       lastRaw = raw;
     } catch (error) {

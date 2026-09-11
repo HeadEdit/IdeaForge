@@ -246,15 +246,19 @@ export function createWorkspaceRepository(
     async loadSettings(): Promise<AiSettings | undefined> {
       try {
         const settings = await (await getDatabase()).get('settings', SETTINGS_KEY);
-        return settings
-          ? {
-              ...settings,
-              tavilyApiKey: typeof settings.tavilyApiKey === 'string' ? settings.tavilyApiKey : '',
-              searchProvider: settings.searchProvider === 'searxng' ? 'searxng' : 'tavily',
-              searxngBaseUrl: typeof settings.searxngBaseUrl === 'string' ? settings.searxngBaseUrl : '',
-              thinkingEnabled: settings.thinkingEnabled === true,
-            }
-          : undefined;
+        if (!settings) return undefined;
+        const normalized: AiSettings = {
+          ...settings,
+          tavilyApiKey: typeof settings.tavilyApiKey === 'string' ? settings.tavilyApiKey : '',
+          thinkingEnabled: settings.thinkingEnabled === true,
+        };
+        if (settings.searchProvider === 'searxng' || settings.searchProvider === 'tavily') {
+          normalized.searchProvider = settings.searchProvider;
+        }
+        if (typeof settings.searxngBaseUrl === 'string') {
+          normalized.searxngBaseUrl = settings.searxngBaseUrl;
+        }
+        return normalized;
       } catch {
         throw storageError();
       }

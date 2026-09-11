@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "page-fetch": "node tools/page-fetch-server.mjs",
     "build": "tsc -b && vite build",
     "build:inline": "tsc -b && vite build --config vite.inline.config.ts",
     "test": "vitest run",

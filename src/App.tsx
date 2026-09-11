@@ -34,10 +34,11 @@ function createRuntimeStore(): AppStore {
     id,
     now,
     createAbortController: () => new AbortController(),
+    fetch,
     isExecutionAvailable: () => !!client,
     configureAiSettings: (settings) => {
       client = settings.baseUrl && settings.apiKey && settings.model
-        ? createAiClient(settings)
+        ? createAiClient(settings, { pageFetch: fetch, plannerFetch: fetch })
         : undefined;
     },
     getAiClient: () => client,

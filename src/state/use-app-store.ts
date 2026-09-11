@@ -71,6 +71,17 @@ export interface NavigationError {
   retryable: true;
 }
 
+export type AiConnectionCheckId = 'model' | 'tavily' | 'searxng' | 'page-fetch';
+export interface AiConnectionCheck {
+  id: AiConnectionCheckId;
+  status: 'passed' | 'failed' | 'skipped';
+  message: string;
+}
+export interface AiConnectionReport {
+  checks: AiConnectionCheck[];
+  ok: boolean;
+}
+
 export interface AppStoreDependencies {
   repository: WorkspaceRepository;
   id: () => string;
@@ -82,6 +93,7 @@ export interface AppStoreDependencies {
   getNodeExecution?: (kind: NodeKind) => NodeExecutionRegistration | undefined;
   getNodeDefinition?: (kind: string) => NodeDefinition | undefined;
   runChat?: (input: RunChatInput) => Promise<RunChatResult>;
+  fetch?: typeof fetch;
 }
 
 export interface AppState {
@@ -103,7 +115,7 @@ export interface AppState {
   loadSettings(): Promise<AiSettings | undefined>;
   saveSettings(settings: AiSettings): Promise<void>;
   clearApiKey(): Promise<void>;
-  testAiConnection(settings: AiSettings): Promise<void>;
+  testAiConnection(settings: AiSettings): Promise<AiConnectionReport>;
   createWorkflow(name?: string): Promise<string>;
   deleteWorkflow(id?: string): Promise<void>;
   renameWorkflow(id: string, name: string): Promise<void>;
@@ -178,6 +190,62 @@ function migrateLoadedWorkflow(
     workflow: nextWorkflow,
     cards: dropCardsOutsideVariablePools(nextWorkflow, cards),
   };
+}
+
+function checkMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
+async function testSearchEndpoint(
+  requestFetch: typeof fetch,
+  baseUrl: string,
+): Promise<AiConnectionCheck> {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (!base) return { id: 'searxng', status: 'skipped', message: '未配置地址' };
+  try {
+    const response = await requestFetch(`${base}/search?${new URLSearchParams({ q: 'test', format: 'json', language: 'all' })}`);
+    if (!response.ok) return { id: 'searxng', status: 'failed', message: `HTTP ${response.status}` };
+    const payload = await response.json() as { results?: unknown };
+    if (!Array.isArray(payload.results)) return { id: 'searxng', status: 'failed', message: '返回格式无效' };
+    return { id: 'searxng', status: 'passed', message: payload.results.length ? `可用，返回 ${payload.results.length} 条结果` : '服务可用，但没有结果' };
+  } catch (error) {
+    return { id: 'searxng', status: 'failed', message: checkMessage(error, '请求失败') };
+  }
+}
+
+async function testTavilyEndpoint(
+  requestFetch: typeof fetch,
+  apiKey: string,
+): Promise<AiConnectionCheck> {
+  const key = apiKey.trim();
+  if (!key) return { id: 'tavily', status: 'skipped', message: '未配置 API Key' };
+  try {
+    const response = await requestFetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ query: 'test', search_depth: 'basic', max_results: 1 }),
+    });
+    if (!response.ok) return { id: 'tavily', status: 'failed', message: `HTTP ${response.status}` };
+    const payload = await response.json() as { results?: unknown };
+    return Array.isArray(payload.results)
+      ? { id: 'tavily', status: 'passed', message: `可用，返回 ${payload.results.length} 条结果` }
+      : { id: 'tavily', status: 'failed', message: '返回格式无效' };
+  } catch (error) {
+    return { id: 'tavily', status: 'failed', message: checkMessage(error, '请求失败') };
+  }
+}
+
+async function testPageFetcher(requestFetch: typeof fetch): Promise<AiConnectionCheck> {
+  try {
+    const response = await requestFetch(`/api/fetch-page?${new URLSearchParams({ url: 'https://example.com' })}`);
+    if (!response.ok) return { id: 'page-fetch', status: 'failed', message: `HTTP ${response.status}，请运行 npm run page-fetch` };
+    const payload = await response.json() as { title?: unknown; content?: unknown };
+    return typeof payload.title === 'string' && typeof payload.content === 'string' && payload.content.trim()
+      ? { id: 'page-fetch', status: 'passed', message: '可用' }
+      : { id: 'page-fetch', status: 'failed', message: '返回正文为空' };
+  } catch (error) {
+    return { id: 'page-fetch', status: 'failed', message: `${checkMessage(error, '请求失败')}，请运行 npm run page-fetch` };
+  }
 }
 
 export function createAppStore(dependencies: AppStoreDependencies): AppStore {
@@ -911,10 +979,22 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     async testAiConnection(settings) {
       dependencies.configureAiSettings?.(settings);
       const client = dependencies.getAiClient?.();
+      const requestFetch = dependencies.fetch ?? fetch;
+      const checks: AiConnectionCheck[] = [];
       if (!client) {
-        throw new Error('not-configured');
+        checks.push({ id: 'model', status: 'failed', message: '模型配置不完整' });
+      } else {
+        try {
+          await client.complete([{ role: 'user', content: '请仅回复：连接成功' }]);
+          checks.push({ id: 'model', status: 'passed', message: '可用' });
+        } catch (error) {
+          checks.push({ id: 'model', status: 'failed', message: checkMessage(error, '请求失败') });
+        }
       }
-      await client.complete([{ role: 'user', content: '请仅回复：连接成功' }]);
+      checks.push(await testTavilyEndpoint(requestFetch, settings.tavilyApiKey));
+      checks.push(await testSearchEndpoint(requestFetch, settings.searxngBaseUrl ?? ''));
+      checks.push(await testPageFetcher(requestFetch));
+      return { checks, ok: checks.every((check) => check.status !== 'failed') };
     },
 
     async initialize() {
