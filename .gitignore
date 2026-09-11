@@ -38,6 +38,12 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# SearXNG local runtime configuration and data
+searxng/settings.yml
+searxng/cache/
+searxng/log/
+searxng/*.db
 # Test output
 test-results/
 playwright-report/

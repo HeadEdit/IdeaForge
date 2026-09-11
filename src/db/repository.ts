@@ -250,6 +250,8 @@ export function createWorkspaceRepository(
           ? {
               ...settings,
               tavilyApiKey: typeof settings.tavilyApiKey === 'string' ? settings.tavilyApiKey : '',
+              searchProvider: settings.searchProvider === 'searxng' ? 'searxng' : 'tavily',
+              searxngBaseUrl: typeof settings.searxngBaseUrl === 'string' ? settings.searxngBaseUrl : '',
               thinkingEnabled: settings.thinkingEnabled === true,
             }
           : undefined;

@@ -24,6 +24,8 @@ const empty: AiSettings = {
   baseUrl: '',
   apiKey: '',
   tavilyApiKey: '',
+  searchProvider: 'tavily',
+  searxngBaseUrl: '',
   model: '',
   thinkingEnabled: false,
 };
@@ -74,6 +76,12 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
       <Input.Password id="ai-api-key" value={settings.apiKey} onChange={update('apiKey')} autoComplete="off" required />
       <label htmlFor="tavily-api-key">Tavily API Key</label>
       <Input.Password id="tavily-api-key" value={settings.tavilyApiKey} onChange={update('tavilyApiKey')} autoComplete="off" />
+      <label htmlFor="search-provider">搜索提供商</label>
+      <Select id="search-provider" aria-label="搜索提供商" value={settings.searchProvider ?? 'tavily'} options={[{ value: 'tavily', label: 'Tavily' }, { value: 'searxng', label: 'SearXNG' }]} onChange={(searchProvider: NonNullable<AiSettings['searchProvider']>) => setSettings((current) => ({ ...current, searchProvider }))} />
+      {settings.searchProvider === 'searxng' && <>
+        <label htmlFor="searxng-base-url">SearXNG 地址</label>
+        <Input id="searxng-base-url" value={settings.searxngBaseUrl} onChange={(event) => setSettings((current) => ({ ...current, searxngBaseUrl: event.target.value }))} placeholder="http://localhost:8080" />
+      </>}
       <label htmlFor="ai-model">模型</label>
       <Input id="ai-model" value={settings.model} onChange={update('model')} placeholder="deepseek-flash" required />
       <div className="settings-toggle-row">

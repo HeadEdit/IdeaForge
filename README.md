@@ -41,6 +41,16 @@ npm run dev
 
 API Key 保存在本机浏览器的 IndexedDB 中，便于本地使用，但不适合共享或不可信设备。密钥不会出现在卡片、导出内容或错误信息中。
 
+### 使用 SearXNG 作为搜索提供商
+
+项目支持将模型服务和搜索服务分开配置。SearXNG 只负责检索，最终回答仍由上面配置的模型生成。可以使用仓库附带的 Compose 文件在本机启动一个实例：
+
+```bash
+docker compose -f docker-compose.searxng.yml up -d
+```
+
+启动后，在 **AI 设置** 中把“搜索提供商”选为 **SearXNG**，地址填写 `http://localhost:8080`。SearXNG 的 JSON 接口应能通过 `http://localhost:8080/search?q=test&format=json` 访问。部署到其他机器时，请确保实例允许浏览器跨域请求，或通过反向代理与前端使用同源 HTTPS 地址；公共实例还可能有频率和隐私限制。
+
 ## 开始搭建工作流
 
 新工作区以空白画布开始。可从左侧节点库添加节点，再通过兼容的端口建立控制流与数据流。
