@@ -23,6 +23,7 @@ export interface AiSettingsDialogProps {
 const empty: AiSettings = {
   baseUrl: '',
   apiKey: '',
+  tavilyApiKey: '',
   model: '',
   thinkingEnabled: false,
 };
@@ -44,7 +45,7 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
       setStatus('');
     }
   }, [open, initial]);
-  const update = (key: 'apiKey' | 'model') => (event: React.ChangeEvent<HTMLInputElement>) => setSettings((current) => ({ ...current, [key]: event.target.value }));
+  const update = (key: 'apiKey' | 'tavilyApiKey' | 'model') => (event: React.ChangeEvent<HTMLInputElement>) => setSettings((current) => ({ ...current, [key]: event.target.value }));
   const provider = AI_PROVIDERS.find((item) => item.id === providerId) ?? AI_PROVIDERS[0];
   const run = async (operation: () => Promise<void>, success: string) => {
     setBusy(true); setStatus('');
@@ -56,7 +57,7 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
   };
   return <AppDialog open={open} title="AI 设置" onClose={onClose}>
     <form className="settings-form" onSubmit={(event) => { event.preventDefault(); void run(() => onSave(settings), '设置已保存'); }}>
-      <p className="settings-notice">API Key 仅保存在当前浏览器的本地 IndexedDB 中，请勿在共享设备使用。</p>
+      <p className="settings-notice">DeepSeek 与 Tavily API Key 仅保存在当前浏览器的本地 IndexedDB 中，请勿在共享设备使用。</p>
       <label htmlFor="ai-provider">模型厂商</label>
       <Select
         id="ai-provider"
@@ -71,8 +72,10 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
       <p className="settings-notice">接口地址：{provider.baseUrl}</p>
       <label htmlFor="ai-api-key">API Key</label>
       <Input.Password id="ai-api-key" value={settings.apiKey} onChange={update('apiKey')} autoComplete="off" required />
+      <label htmlFor="tavily-api-key">Tavily API Key</label>
+      <Input.Password id="tavily-api-key" value={settings.tavilyApiKey} onChange={update('tavilyApiKey')} autoComplete="off" />
       <label htmlFor="ai-model">模型</label>
-      <Input id="ai-model" value={settings.model} onChange={update('model')} placeholder="deepseek-v4-flash" required />
+      <Input id="ai-model" value={settings.model} onChange={update('model')} placeholder="deepseek-flash" required />
       <div className="settings-toggle-row">
         <label htmlFor="ai-thinking-enabled">思考模式</label>
         <Switch

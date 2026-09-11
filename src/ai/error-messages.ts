@@ -6,7 +6,7 @@ const messages: Record<AiErrorKind, string> = {
   'rate-limit': '请求过于频繁，请稍后重试',
   server: 'AI 服务暂时不可用，请稍后重试',
   'invalid-response': 'AI 服务返回了无效响应',
-  unsupported: '当前模型不支持联网搜索，请使用 DeepSeek 模型',
+  unsupported: '联网搜索未配置 Tavily API Key，或当前服务不支持联网搜索',
   stopped: '已停止请求',
 };
 

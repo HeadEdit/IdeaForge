@@ -156,6 +156,7 @@ export interface ChatSession {
 export interface AiSettings {
   baseUrl: string;
   apiKey: string;
+  tavilyApiKey: string;
   model: string;
   thinkingEnabled: boolean;
 }

@@ -247,7 +247,11 @@ export function createWorkspaceRepository(
       try {
         const settings = await (await getDatabase()).get('settings', SETTINGS_KEY);
         return settings
-          ? { ...settings, thinkingEnabled: settings.thinkingEnabled === true }
+          ? {
+              ...settings,
+              tavilyApiKey: typeof settings.tavilyApiKey === 'string' ? settings.tavilyApiKey : '',
+              thinkingEnabled: settings.thinkingEnabled === true,
+            }
           : undefined;
       } catch {
         throw storageError();

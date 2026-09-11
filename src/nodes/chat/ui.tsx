@@ -39,6 +39,8 @@ export function ChatDialog({
   const sessions = useStore(store, (state) => state.sessions);
   const activities = useStore(store, (state) => state.chatActivities);
   const cards = useStore(store, (state) => state.cards ?? []);
+  const settings = useStore(store, (state) => state.settings);
+  const hasTavilyApiKey = Boolean(settings.tavilyApiKey.trim());
   const executionAvailable = store.getState().isExecutionAvailable();
   const capabilities = useMemo(() => store.getState().getHostCapabilities(), [store]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -510,9 +512,9 @@ export function ChatDialog({
                   </label>
                   <Checkbox
                     aria-label="联网搜索"
-                    title="仅支持 DeepSeek 模型"
-                    checked={parsed.success && parsed.data.webSearch}
-                    disabled={nodeBusy}
+                    title={hasTavilyApiKey ? '使用 Tavily 联网搜索' : '请先在 AI 设置中填写 Tavily API Key'}
+                    checked={hasTavilyApiKey && parsed.success && parsed.data.webSearch}
+                    disabled={nodeBusy || !hasTavilyApiKey}
                     onChange={(event) => {
                       capabilities.workflow.patchConfig(nodeId, { webSearch: event.target.checked });
                     }}

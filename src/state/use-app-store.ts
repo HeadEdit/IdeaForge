@@ -863,7 +863,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     documents: [],
     saveStatus: 'idle',
     initialized: false,
-    settings: { baseUrl: '', apiKey: '', model: '', thinkingEnabled: false },
+    settings: { baseUrl: '', apiKey: '', tavilyApiKey: '', model: '', thinkingEnabled: false },
 
     isExecutionAvailable() {
       return dependencies.isExecutionAvailable();
