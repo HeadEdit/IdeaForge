@@ -1,0 +1,7 @@
+{
+  "name": "ideaforge-search-gateway",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node server.mjs", "test": "node --test checks.mjs" },
+  "dependencies": { "zod": "4.4.3" }
+}

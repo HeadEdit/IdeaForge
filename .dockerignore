@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+.env
+.env.*
+searxng
+test
+e2e
+test-results
+services/search-gateway/node_modules

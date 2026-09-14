@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: deploy/search-web.Dockerfile
+    ports:
+      - "127.0.0.1:8088:80"
+    depends_on:
+      - search-gateway
+    restart: unless-stopped
+  search-gateway:
+    build:
+      context: .
+      dockerfile: services/search-gateway/Dockerfile
+    env_file: .env
+    environment:
+      SEARXNG_URL: http://searxng:8080
+      SEARCH_HOST: 0.0.0.0
+    depends_on:
+      - searxng
+    restart: unless-stopped
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in .env}
+    volumes:
+      - ./deploy/search-searxng.yml:/etc/searxng/settings.yml:ro
+    restart: unless-stopped

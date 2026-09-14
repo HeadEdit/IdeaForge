@@ -17,13 +17,8 @@ export default defineConfig({
   base: './',
   server: {
     proxy: {
-      '/searxng': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        rewrite: (requestPath) => requestPath.replace(/^\/searxng/, ''),
-      },
-      '/api': {
-        target: 'http://localhost:8787',
+      '/api/search': {
+        target: 'http://127.0.0.1:8788',
         changeOrigin: true,
       },
     },

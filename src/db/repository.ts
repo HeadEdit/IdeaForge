@@ -247,17 +247,16 @@ export function createWorkspaceRepository(
       try {
         const settings = await (await getDatabase()).get('settings', SETTINGS_KEY);
         if (!settings) return undefined;
+        const persisted = settings as Omit<AiSettings, 'searchProvider'> & { searchProvider?: unknown; searxngBaseUrl?: unknown };
+        const { searxngBaseUrl: _retiredSearxngBaseUrl, searchProvider: persistedSearchProvider, ...current } = persisted;
         const normalized: AiSettings = {
-          ...settings,
+          ...current,
           tavilyApiKey: typeof settings.tavilyApiKey === 'string' ? settings.tavilyApiKey : '',
+          searchProvider: 'vane',
           thinkingEnabled: settings.thinkingEnabled === true,
         };
-        if (settings.searchProvider === 'searxng' || settings.searchProvider === 'tavily') {
-          normalized.searchProvider = settings.searchProvider;
-        }
-        if (typeof settings.searxngBaseUrl === 'string') {
-          normalized.searxngBaseUrl = settings.searxngBaseUrl;
-        }
+        if (persistedSearchProvider === 'searxng') normalized.searchProvider = 'vane';
+        else if (persistedSearchProvider === 'tavily' || persistedSearchProvider === 'vane') normalized.searchProvider = persistedSearchProvider;
         return normalized;
       } catch {
         throw storageError();

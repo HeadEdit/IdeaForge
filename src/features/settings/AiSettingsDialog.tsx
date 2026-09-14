@@ -25,21 +25,19 @@ const empty: AiSettings = {
   baseUrl: '',
   apiKey: '',
   tavilyApiKey: '',
-  searchProvider: 'tavily',
-  searxngBaseUrl: '',
+  searchProvider: 'vane',
   model: '',
   thinkingEnabled: false,
 };
 
 function withProvider(settings: AiSettings, providerId = aiProviderIdFromBaseUrl(settings.baseUrl)): AiSettings {
-  return applyAiProvider(settings, providerId);
+  return { ...applyAiProvider(settings, providerId), searchProvider: settings.searchProvider ?? 'vane' };
 }
 
 const connectionCheckLabels: Record<AiConnectionCheck['id'], string> = {
   model: '模型服务',
   tavily: 'Tavily',
-  searxng: 'SearXNG',
-  'page-fetch': 'page-fetch',
+  vane: 'SearXNG',
 };
 
 export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onClearKey, onTestConnection }: AiSettingsDialogProps) {
@@ -86,11 +84,16 @@ export function AiSettingsDialog({ open, initial = empty, onClose, onSave, onCle
       <Input.Password id="ai-api-key" value={settings.apiKey} onChange={update('apiKey')} autoComplete="off" required />
       <label htmlFor="tavily-api-key">Tavily API Key</label>
       <Input.Password id="tavily-api-key" value={settings.tavilyApiKey} onChange={update('tavilyApiKey')} autoComplete="off" />
-      <label htmlFor="search-provider">搜索提供商</label>
-      <Select id="search-provider" aria-label="搜索提供商" value={settings.searchProvider ?? 'tavily'} options={[{ value: 'tavily', label: 'Tavily' }, { value: 'searxng', label: 'SearXNG' }]} onChange={(searchProvider: NonNullable<AiSettings['searchProvider']>) => setSettings((current) => ({ ...current, searchProvider }))} />
-      {settings.searchProvider === 'searxng' && <>
-        <label htmlFor="searxng-base-url">SearXNG 地址</label>
-        <Input id="searxng-base-url" value={settings.searxngBaseUrl} onChange={(event) => setSettings((current) => ({ ...current, searxngBaseUrl: event.target.value }))} placeholder="/searxng（本地开发代理）或 http://localhost:8080" />
+      <label htmlFor="search-provider">联网搜索提供商</label>
+      <Select id="search-provider" aria-label="联网搜索提供商" value={settings.searchProvider ?? 'vane'} options={[{ value: 'vane', label: 'SearXNG' }, { value: 'tavily', label: 'Tavily' }]} onChange={(searchProvider: NonNullable<AiSettings['searchProvider']>) => setSettings((current) => ({ ...current, searchProvider }))} />
+      {settings.searchProvider === 'vane' && <>
+        <label htmlFor="search-gateway-url">搜索服务地址</label>
+        <Input id="search-gateway-url" value={settings.searchGatewayUrl ?? ''} placeholder="/api/search（默认同源）" onChange={(e) => setSettings((s) => ({ ...s, searchGatewayUrl: e.target.value }))} />
+        <label htmlFor="search-gateway-token">搜索服务访问令牌（可选）</label>
+        <Input.Password id="search-gateway-token" autoComplete="off" value={settings.searchGatewayToken ?? ''} onChange={(e) => setSettings((s) => ({ ...s, searchGatewayToken: e.target.value }))} />
+        <label htmlFor="search-mode">搜索深度</label>
+        <Select id="search-mode" value={settings.searchMode ?? 'speed'} options={[{ value: 'speed', label: '快速' }, { value: 'balanced', label: '均衡（多轮检索）' }]} onChange={(searchMode: 'speed' | 'balanced') => setSettings((s) => ({ ...s, searchMode }))} />
+        <p className="settings-notice">搜索服务接收问题及最近对话用于检索。规划模型由服务端配置；你的回答模型 Key 不会发送到搜索服务。</p>
       </>}
       <label htmlFor="ai-model">模型</label>
       <Input id="ai-model" value={settings.model} onChange={update('model')} placeholder="deepseek-flash" required />

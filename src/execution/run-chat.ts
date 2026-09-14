@@ -55,11 +55,12 @@ async function searchThenComplete(
   client: AiClient,
   messages: Parameters<AiClient['complete']>[0],
   signal: AbortSignal,
+  onSearchProgress?: (event: import('../ai/search-gateway').SearchProgress) => void,
 ): Promise<string> {
   if (!client.completeWithWebSearch) {
     throw new AiClientError('unsupported', false);
   }
-  return client.completeWithWebSearch(messages, { signal });
+  return client.completeWithWebSearch(messages, { signal, onSearchProgress });
 }
 
 function failed(
@@ -155,8 +156,15 @@ export async function runChat(
       if (!input.agentLibrary) throw new AiClientError('unsupported', false);
       agent = await runChatAgent(client, messages, input.agentLibrary, input.signal, input.webSearch, input.onAgentEvent);
     }
+    const searchEvents: AgentEvent[] = [];
+    const reportSearch = (event: import('../ai/search-gateway').SearchProgress) => {
+      const item: AgentEvent = { id: `search-${searchEvents.length}`, round: searchEvents.length + 1, kind: 'tool',
+        title: event.stage, status: 'succeeded', startedAt: deps.now(), finishedAt: deps.now(), output: event.detail };
+      searchEvents.push(item);
+      input.onAgentEvent?.(item);
+    };
     const reply = agent ? agent.reply : input.webSearch
-      ? await searchThenComplete(client, messages.map(({ role, content }) => ({ role, content })), input.signal)
+      ? await searchThenComplete(client, messages.map(({ role, content }) => ({ role, content })), input.signal, reportSearch)
       : await client.complete(messages.map(({ role, content }) => ({ role, content })), { signal: input.signal });
     if (!agent && input.signal.aborted) {
       return { status: 'stopped', startedAt, finishedAt: deps.now() };
@@ -167,7 +175,7 @@ export async function runChat(
       ? {
         ...withActiveConversationMessages(shaped, [
           ...messages.filter((message) => message.role !== 'system'),
-          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : {}) },
+          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : searchEvents.length ? { agentEvents: searchEvents } : {}) },
         ], finishedAt),
         skillId,
         referencedCardIds,
@@ -183,7 +191,7 @@ export async function runChat(
         conversationId: deps.id(),
         messages: [
           ...messages.filter((message) => message.role !== 'system'),
-          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : {}) },
+          { role: 'assistant', content: reply, ...(agent ? { agentEvents: agent.events } : searchEvents.length ? { agentEvents: searchEvents } : {}) },
         ],
       });
     return { status: agent?.status ?? 'succeeded', startedAt, finishedAt, session, ...(agent?.errorKind ? { errorKind: agent.errorKind } : {}) };

@@ -38,7 +38,7 @@ function createRuntimeStore(): AppStore {
     isExecutionAvailable: () => !!client,
     configureAiSettings: (settings) => {
       client = settings.baseUrl && settings.apiKey && settings.model
-        ? createAiClient(settings, { pageFetch: fetch, plannerFetch: fetch })
+        ? createAiClient(settings)
         : undefined;
     },
     getAiClient: () => client,

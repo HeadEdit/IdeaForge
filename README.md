@@ -41,25 +41,15 @@ npm run dev
 
 API Key 保存在本机浏览器的 IndexedDB 中，便于本地使用，但不适合共享或不可信设备。密钥不会出现在卡片、导出内容或错误信息中。
 
-### 使用 SearXNG 作为搜索提供商
+### 使用联网搜索（推荐）
 
-项目支持将模型服务和搜索服务分开配置。SearXNG 只负责检索，最终回答仍由上面配置的模型生成。可以使用仓库附带的 Compose 文件在本机启动一个实例：
+联网搜索由独立 Node 后端处理，支持快速/均衡模式、多轮查询、并行搜索、可选 Embedding 排序与去重、进度和来源列表。最终回答仍使用浏览器配置的模型。
 
-```bash
-docker compose -f docker-compose.searxng.yml up -d
-```
+复制 `.env.example` 为 `.env`，配置后端搜索模型，然后启动 SearXNG、`npm run search-gateway` 和 `npm run dev`。在 AI 设置的“联网搜索提供商”中选择“SearXNG”，服务地址留空即可使用开发代理。规划模型 Key 由后端持有；浏览器的回答模型 Key 不会转发到搜索后端。
 
-启动后，在 **AI 设置** 中把“搜索提供商”选为 **SearXNG**。使用 `npm run dev` 本地开发时，建议地址填写 `/searxng`，Vite 会把请求代理到 `http://localhost:8080`，避免浏览器 CORS 限制。也可以填写 `http://localhost:8080`，但此时 SearXNG 必须自行配置允许当前前端来源的 CORS 响应头。SearXNG 的 JSON 接口应能通过 `http://localhost:8080/search?q=test&format=json` 访问。部署到其他机器时，请通过反向代理让前端和 SearXNG 使用同源 HTTPS 地址；公共实例还可能有频率和隐私限制。
+完整的一键自托管配置、费用边界与 API 见 [搜索服务说明](services/search-gateway/README.md)。搜索支持快速/均衡模式，使用网页摘要并返回来源列表；也可在“联网搜索提供商”中选择 Tavily。
 
-使用 SearXNG 联网搜索时，工作台会先让模型把复杂需求改写成多个互补的搜索词，再合并去重结果；包含“近一年”等时间条件时会同时传递年度时间过滤。查询规划失败时会自动退回原始问题搜索。Tavily 仍使用原始用户问题，不经过这层改写。
-
-想让联网搜索继续读取文章正文，可在另一个终端启动可选的本地网页抓取服务：
-
-```bash
-npm run page-fetch
-```
-
-启动后保持 SearXNG 地址为 `/searxng`。搜索会尝试抓取前 3 个结果并提取正文，抓取失败时自动回退到 SearXNG 摘要。抓取服务只监听本机地址，并限制请求协议、响应大小和超时时间；生产部署时应将它放在受控的后端或反向代理之后。
+SearXNG 作为联网搜索后端提供检索结果。开发时可用 `docker compose -f docker-compose.searxng.yml up -d` 单独启动；完整部署使用 `docker-compose.search.yml`。
 
 ## 开始搭建工作流
 

@@ -72,7 +72,7 @@ export function createChatEffects(runtime: ChatRuntime): NodeEffectContribution<
           });
           if (!owns()) return;
           if (result.status === 'failed' && result.errorKind) {
-            const kinds = ['auth', 'network-or-cors', 'rate-limit', 'server', 'invalid-response', 'unsupported'];
+            const kinds = ['auth', 'network-or-cors', 'rate-limit', 'server', 'invalid-response', 'unsupported', 'search-unavailable', 'search-no-results'];
             void message.error(kinds.includes(result.errorKind)
               ? getAiErrorMessage(result.errorKind as AiErrorKind) : '对话请求失败，请重试');
           }

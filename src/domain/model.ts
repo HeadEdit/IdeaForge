@@ -157,8 +157,10 @@ export interface AiSettings {
   baseUrl: string;
   apiKey: string;
   tavilyApiKey: string;
-  searchProvider?: 'tavily' | 'searxng';
-  searxngBaseUrl?: string;
+  searchProvider?: 'tavily' | 'vane';
+  searchGatewayUrl?: string;
+  searchGatewayToken?: string;
+  searchMode?: 'speed' | 'balanced';
   model: string;
   thinkingEnabled: boolean;
 }

@@ -71,7 +71,7 @@ export interface NavigationError {
   retryable: true;
 }
 
-export type AiConnectionCheckId = 'model' | 'tavily' | 'searxng' | 'page-fetch';
+export type AiConnectionCheckId = 'model' | 'tavily' | 'vane';
 export interface AiConnectionCheck {
   id: AiConnectionCheckId;
   status: 'passed' | 'failed' | 'skipped';
@@ -196,23 +196,6 @@ function checkMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
-async function testSearchEndpoint(
-  requestFetch: typeof fetch,
-  baseUrl: string,
-): Promise<AiConnectionCheck> {
-  const base = baseUrl.trim().replace(/\/+$/, '');
-  if (!base) return { id: 'searxng', status: 'skipped', message: '未配置地址' };
-  try {
-    const response = await requestFetch(`${base}/search?${new URLSearchParams({ q: 'test', format: 'json', language: 'all' })}`);
-    if (!response.ok) return { id: 'searxng', status: 'failed', message: `HTTP ${response.status}` };
-    const payload = await response.json() as { results?: unknown };
-    if (!Array.isArray(payload.results)) return { id: 'searxng', status: 'failed', message: '返回格式无效' };
-    return { id: 'searxng', status: 'passed', message: payload.results.length ? `可用，返回 ${payload.results.length} 条结果` : '服务可用，但没有结果' };
-  } catch (error) {
-    return { id: 'searxng', status: 'failed', message: checkMessage(error, '请求失败') };
-  }
-}
-
 async function testTavilyEndpoint(
   requestFetch: typeof fetch,
   apiKey: string,
@@ -232,19 +215,6 @@ async function testTavilyEndpoint(
       : { id: 'tavily', status: 'failed', message: '返回格式无效' };
   } catch (error) {
     return { id: 'tavily', status: 'failed', message: checkMessage(error, '请求失败') };
-  }
-}
-
-async function testPageFetcher(requestFetch: typeof fetch): Promise<AiConnectionCheck> {
-  try {
-    const response = await requestFetch(`/api/fetch-page?${new URLSearchParams({ url: 'https://example.com' })}`);
-    if (!response.ok) return { id: 'page-fetch', status: 'failed', message: `HTTP ${response.status}，请运行 npm run page-fetch` };
-    const payload = await response.json() as { title?: unknown; content?: unknown };
-    return typeof payload.title === 'string' && typeof payload.content === 'string' && payload.content.trim()
-      ? { id: 'page-fetch', status: 'passed', message: '可用' }
-      : { id: 'page-fetch', status: 'failed', message: '返回正文为空' };
-  } catch (error) {
-    return { id: 'page-fetch', status: 'failed', message: `${checkMessage(error, '请求失败')}，请运行 npm run page-fetch` };
   }
 }
 
@@ -931,7 +901,7 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
     documents: [],
     saveStatus: 'idle',
     initialized: false,
-    settings: { baseUrl: '', apiKey: '', tavilyApiKey: '', searchProvider: 'tavily', searxngBaseUrl: '', model: '', thinkingEnabled: false },
+    settings: { baseUrl: '', apiKey: '', tavilyApiKey: '', searchProvider: 'vane', model: '', thinkingEnabled: false },
 
     isExecutionAvailable() {
       return dependencies.isExecutionAvailable();
@@ -991,9 +961,18 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
           checks.push({ id: 'model', status: 'failed', message: checkMessage(error, '请求失败') });
         }
       }
-      checks.push(await testTavilyEndpoint(requestFetch, settings.tavilyApiKey));
-      checks.push(await testSearchEndpoint(requestFetch, settings.searxngBaseUrl ?? ''));
-      checks.push(await testPageFetcher(requestFetch));
+      if (settings.searchProvider === 'vane') {
+        try {
+          const base = (settings.searchGatewayUrl?.trim() || '/api/search').replace(/\/+$/, '');
+          const response = await requestFetch(`${base}/health`, { signal: AbortSignal.timeout(10_000),
+            headers: settings.searchGatewayToken?.trim() ? { Authorization: `Bearer ${settings.searchGatewayToken.trim()}` } : {} });
+          const health = await response.json();
+          checks.push({ id: 'vane', status: response.ok && health.ok === true ? 'passed' : 'failed',
+            message: response.ok && health.ok === true ? '服务已启动、规划模型已配置（未执行付费检索）' : '服务未就绪，请检查地址、访问令牌和后端模型配置' });
+        } catch { checks.push({ id: 'vane', status: 'failed', message: '无法连接搜索服务' }); }
+      } else if (settings.searchProvider === 'tavily') {
+        checks.push(await testTavilyEndpoint(requestFetch, settings.tavilyApiKey));
+      }
       return { checks, ok: checks.every((check) => check.status !== 'failed') };
     },
 

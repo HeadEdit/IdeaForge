@@ -43,6 +43,13 @@ The API key is stored in this browser's local IndexedDB. This is convenient for 
 
 ## Build your first workflow
 
+Web search uses the Node gateway with Speed/Balanced research, parallel SearXNG
+queries, optional embedding ranking, progress and source links.
+Copy `.env.example` to `.env`, configure the server-side search model, start
+SearXNG and `npm run search-gateway`, then select SearXNG under Web Search Provider in AI Settings.
+The final answer still uses the browser's model; its API key is not sent to the gateway.
+See [gateway deployment and API notes](services/search-gateway/README.md).
+
 A new workspace starts with a blank canvas. Add nodes from the library on the left, then connect compatible ports to form control and data flows.
 
 A typical idea workflow is:

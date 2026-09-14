@@ -5,7 +5,7 @@ const statusLabels = { running: '进行中', succeeded: '完成', failed: '失�
 export function AgentTimeline({ events }: { events: readonly AgentEvent[] }) {
   if (!events.length) return null;
   return <details className="agent-timeline">
-    <summary>Agent 过程 · {events.filter((e) => e.kind === 'request').length} 次请求 · {events.filter((e) => e.kind === 'tool').length} 次工具调用</summary>
+    <summary>{events.every((e) => e.id.startsWith('search-')) ? `联网检索过程 · ${events.length} 条进度` : <>Agent 过程 · {events.filter((e) => e.kind === 'request').length} 次请求 · {events.filter((e) => e.kind === 'tool').length} 次工具调用</>}</summary>
     <ol>{events.map((event) => <li key={event.id}>
       <details>
         <summary>{event.title} <span className={`agent-timeline__status agent-timeline__status--${event.status}`}>{statusLabels[event.status]}</span></summary>
