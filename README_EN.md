@@ -41,14 +41,25 @@ Open **AI Settings** and provide an OpenAI-compatible Base URL, API key, and mod
 
 The API key is stored in this browser's local IndexedDB. This is convenient for a local tool, but it is not suitable for shared or untrusted devices. Keys are never rendered into cards, exports, or error messages.
 
-## Build your first workflow
+### Use web search
 
-Web search uses the Node gateway with Speed/Balanced research, parallel SearXNG
-queries, optional embedding ranking, progress and source links.
-Copy `.env.example` to `.env`, configure the server-side search model, start
-SearXNG and `npm run search-gateway`, then select SearXNG under Web Search Provider in AI Settings.
-The final answer still uses the browser's model; its API key is not sent to the gateway.
-See [gateway deployment and API notes](services/search-gateway/README.md).
+Choose one provider under Web Search Provider in AI Settings, then enable web search in a Chat node.
+
+#### SearXNG
+
+1. Copy `.env.example` to `.env` and fill in the server-side search model settings.
+2. Start SearXNG: `docker compose -f docker-compose.searxng.yml up -d`.
+3. Run `npm run search-gateway`, then `npm run dev` in another terminal.
+4. In AI Settings, select SearXNG and leave the endpoint blank.
+
+See [search gateway usage](services/search-gateway/README.md) for full deployment.
+
+#### Tavily
+
+1. Enter your Tavily API Key in AI Settings.
+2. Set Web Search Provider to Tavily.
+
+## Build your first workflow
 
 A new workspace starts with a blank canvas. Add nodes from the library on the left, then connect compatible ports to form control and data flows.
 

@@ -41,15 +41,23 @@ npm run dev
 
 API Key 保存在本机浏览器的 IndexedDB 中，便于本地使用，但不适合共享或不可信设备。密钥不会出现在卡片、导出内容或错误信息中。
 
-### 使用联网搜索（推荐）
+### 使用联网搜索
 
-联网搜索由独立 Node 后端处理，支持快速/均衡模式、多轮查询、并行搜索、可选 Embedding 排序与去重、进度和来源列表。最终回答仍使用浏览器配置的模型。
+可选两种提供商，在 AI 设置的「联网搜索提供商」中切换；在聊天节点中启用联网搜索即可。
 
-复制 `.env.example` 为 `.env`，配置后端搜索模型，然后启动 SearXNG、`npm run search-gateway` 和 `npm run dev`。在 AI 设置的“联网搜索提供商”中选择“SearXNG”，服务地址留空即可使用开发代理。规划模型 Key 由后端持有；浏览器的回答模型 Key 不会转发到搜索后端。
+#### SearXNG
 
-完整的一键自托管配置、费用边界与 API 见 [搜索服务说明](services/search-gateway/README.md)。搜索支持快速/均衡模式，使用网页摘要并返回来源列表；也可在“联网搜索提供商”中选择 Tavily。
+1. 复制 `.env.example` 为 `.env`，填写后端搜索模型配置。
+2. 启动 SearXNG：`docker compose -f docker-compose.searxng.yml up -d`。
+3. 运行 `npm run search-gateway`，另开终端运行 `npm run dev`。
+4. 在 AI 设置中选择 SearXNG，服务地址留空。
 
-SearXNG 作为联网搜索后端提供检索结果。开发时可用 `docker compose -f docker-compose.searxng.yml up -d` 单独启动；完整部署使用 `docker-compose.search.yml`。
+完整部署见 [搜索服务说明](services/search-gateway/README.md)。
+
+#### Tavily
+
+1. 在 AI 设置中填写 Tavily API Key。
+2. 将「联网搜索提供商」选择为 Tavily。
 
 ## 开始搭建工作流
 
