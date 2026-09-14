@@ -21,11 +21,11 @@ test('balanced uses new evidence for follow-up searches and deduplicates URLs', 
       assert.ok(messages.some((m) => m.role === 'tool' && m.content.includes('facts')));
       if (round === 2) return reply(call('web_search', { queries: ['details'] }));
       return reply(call('done'));
-    }, search: async (q) => { queries.push(q); return [source(), source(q)]; },
+    }, search: async (q) => { queries.push(q); return [{ ...source(q), url: `https://${q}.example.com/`, content: `new release date details ${q} facts` }]; },
   }, signal());
   assert.equal(round, 3);
   assert.deepEqual(queries.sort(), ['date', 'details', 'release']);
-  assert.equal(result.sources.length, 4);
+  assert.equal(result.sources.length, 3);
   assert.ok(result.warnings.includes('embedding-not-configured'));
 });
 
@@ -33,7 +33,7 @@ test('speed enforces one batch even if model asks for more', async () => {
   const queries = [];
   const result = await research({ query: 'question' }, {
     model: async () => reply(call('web_search', { queries: ['one'] }), call('web_search', { queries: ['two'] })),
-    search: async (q) => { queries.push(q); return [source()]; },
+    search: async (q) => { queries.push(q); return [source(`question ${q}`)]; },
   }, signal());
   assert.deepEqual(queries, ['one']);
   assert.equal(result.mode, 'speed');
@@ -41,7 +41,7 @@ test('speed enforces one batch even if model asks for more', async () => {
 
 test('planner failure falls back to original question; empty results fail explicitly', async () => {
   const queries = [];
-  const deps = { model: async () => { throw new Error('bad model'); }, search: async (q) => { queries.push(q); return [source()]; } };
+  const deps = { model: async () => { throw new Error('bad model'); }, search: async (q) => { queries.push(q); return [source(q)]; } };
   const result = await research({ query: 'original' }, deps, signal());
   assert.deepEqual(queries, ['original']);
   assert.ok(result.warnings.includes('planner-unavailable'));
@@ -50,18 +50,20 @@ test('planner failure falls back to original question; empty results fail explic
 
 test('semantic relevance filter and deduplication; embeddings can fail safely', async () => {
   const results = [source('relevant'), source('same'), source('irrelevant')];
-  const { ranked } = await rankResults('q', results, async () => [[1, 0], [1, 0], [0.99, 0.01], [0, 1]], signal());
+  const { ranked } = await rankResults('q', results, async () => [[1, 0], [1, 0], [1, 0], [0.99, 0.01], [0, 1]], signal());
   assert.equal(ranked.length, 2);
   assert.equal(deduplicate(ranked).length, 1);
-  const fallback = await rankResults('q', results, async () => { throw new Error(); }, signal());
-  assert.equal(fallback.ranked.length, 3);
+  const fallback = await rankResults('relevant', results, async () => { throw new Error(); }, signal());
+  assert.ok(fallback.ranked.some((r) => r.title === 'relevant'));
+  assert.ok(!fallback.ranked.some((r) => r.title === 'same'));
+  assert.ok(!fallback.ranked.some((r) => r.title === 'irrelevant'));
   assert.equal(fallback.degraded, true);
 });
 
 test('invalid tool arguments trigger bounded fallback; cancelled searches never fall back', async () => {
   const result = await research({ query: 'actual question' }, {
     model: async () => reply(call('web_search', { queries: ['a', 'b', 'c', 'd'] })),
-    search: async (q) => { assert.equal(q, 'actual question'); return [source()]; },
+    search: async (q) => { assert.equal(q, 'actual question'); return [source(q)]; },
   }, signal());
   assert.equal(result.sources.length, 1);
   const controller = new AbortController();
@@ -83,7 +85,7 @@ test('search adapter sanitizes URLs, strips fragments, bounds text, and sorts em
 test('HTTP supports authenticated JSON/SSE and rejects bad origin, quality and oversized input', async () => {
   const server = createServer({ env: { SEARCH_MODEL: 'fixture', SEARCH_GATEWAY_TOKEN: 'test-token' }, upstreams: {
     model: async () => reply(call('web_search', { queries: ['q'] }), call('done')),
-    search: async () => [source()],
+    search: async () => [source('q')],
   } });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

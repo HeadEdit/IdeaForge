@@ -27,7 +27,7 @@ export async function research(input, { model, search, embed }, signal, emit = (
     const batches = await Promise.all(fresh.map(async (q) => {
       try {
         const results = await search(q, signal);
-        const { ranked, degraded } = await rankResults(q, results, embed, signal);
+        const { ranked, degraded } = await rankResults(q, results, embed, signal, query);
         if (degraded) warnings.add('embedding-unavailable');
         return ranked;
       } catch (error) {

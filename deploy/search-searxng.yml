@@ -7,3 +7,21 @@ search:
   formats:
     - html
     - json
+
+
+engines:
+  - name: brave
+    disabled: true
+
+  - name: duckduckgo
+    disabled: true
+
+  - name: google
+    disabled: true
+
+  - name: google cse
+    disabled: true
+
+  - name: bing
+    disabled: false
+    base_url: https://cn.bing.com

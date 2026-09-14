@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "vite",
     "search-gateway": "node --env-file=.env services/search-gateway/server.mjs",
-    "test:search": "node --test services/search-gateway/checks.mjs",
+    "test:search": "node --test services/search-gateway/checks.mjs services/search-gateway/relevance.checks.mjs",
     "build": "tsc -b && vite build",
     "build:inline": "tsc -b && vite build --config vite.inline.config.ts",
     "test": "vitest run",

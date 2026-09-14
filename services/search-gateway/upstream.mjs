@@ -1,3 +1,5 @@
+import { searchLanguage } from './relevance.mjs';
+
 export async function jsonRequest(url, options = {}, requestFetch = fetch) {
   const signal = AbortSignal.any([...(options.signal ? [options.signal] : []), AbortSignal.timeout(30_000)]);
   const response = await requestFetch(url, { ...options, signal, redirect: 'error' });
@@ -33,9 +35,10 @@ export function createUpstreams(env = process.env, requestFetch = fetch) {
     },
     async search(query, signal) {
       const url = new URL('/search', env.SEARXNG_URL || 'http://127.0.0.1:8080');
-      url.search = new URLSearchParams({ q: query, format: 'json', language: 'auto' }).toString();
+      url.search = new URLSearchParams({ q: query, format: 'json', language: searchLanguage(query) }).toString();
       const payload = await jsonRequest(url, { signal }, requestFetch);
       if (!Array.isArray(payload.results)) throw new Error('invalid-search-response');
+      if (!payload.results.length && payload.unresponsive_engines?.length) throw new Error('search-engines-unavailable');
       return payload.results.slice(0, 30).flatMap((r) => {
         try {
           const u = new URL(r.url);
