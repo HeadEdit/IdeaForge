@@ -149,6 +149,32 @@ function getContent(payload: unknown): string | undefined {
   return content.trim().length > 0 ? content : undefined;
 }
 
+function reasoningLanguageInstruction(content: string): string {
+  const hanCount = content.match(/\p{Script=Han}/gu)?.length ?? 0;
+  const latinCount = content.match(/\p{Script=Latin}/gu)?.length ?? 0;
+  return hanCount > 0 && hanCount >= latinCount
+    ? '请使用中文进行推理，思考内容使用用户当前输入的语言。'
+    : "Reason in English. Use the language of the user's current input for reasoning content.";
+}
+
+function addReasoningLanguageInstruction<T extends ChatMessage | AiToolMessage>(messages: T[]): T[] {
+  let latestUserIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index].role === 'user') {
+      latestUserIndex = index;
+      break;
+    }
+  }
+  if (latestUserIndex < 0) return messages;
+
+  return messages.map((message, index) => index === latestUserIndex
+    ? {
+        ...message,
+        content: `${message.content}\n\n${reasoningLanguageInstruction(message.content ?? '')}`,
+      } as T
+    : message);
+}
+
 export function createAiClient(
   settings: AiSettings,
   dependencies: AiClientDependencies = {},
@@ -163,6 +189,7 @@ export function createAiClient(
       const model = settings.model.trim();
       const thinkingEnabled = settings.thinkingEnabled && model.toLowerCase().startsWith('deepseek-');
       const maxTokens = resolveAiMaxTokens(options.maxTokens ?? AI_REQUEST_LIMITS.tools, thinkingEnabled);
+      const requestMessages = thinkingEnabled ? addReasoningLanguageInstruction(messages) : messages;
       if (!url || !apiKey || !model) throw createError('invalid-response');
       if (options.signal?.aborted) throw createError('stopped');
       let response: Response;
@@ -172,7 +199,7 @@ export function createAiClient(
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
             model,
-            messages: messages.map((message) => {
+            messages: requestMessages.map((message) => {
               if (message.role === 'tool') return { role: message.role, content: message.content, tool_call_id: message.tool_call_id };
               if ('tool_calls' in message) return {
                 role: message.role, content: message.content, tool_calls: message.tool_calls,
@@ -217,6 +244,7 @@ export function createAiClient(
       const apiKey = settings.apiKey.trim();
       const model = settings.model.trim();
       const thinkingEnabled = settings.thinkingEnabled && model.toLowerCase().startsWith('deepseek-');
+      const requestMessages = thinkingEnabled ? addReasoningLanguageInstruction(messages) : messages;
 
       if (
         !baseUrl ||
@@ -237,7 +265,7 @@ export function createAiClient(
       const body = {
         model,
         ...(options.onReasoningDelta ? { stream: true } : {}),
-        messages: messages.map(({ role, content }) => ({ role, content })),
+        messages: requestMessages.map(({ role, content }) => ({ role, content })),
         ...(model.toLowerCase().startsWith('deepseek-')
           ? {
               thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' },
