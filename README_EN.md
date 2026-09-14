@@ -71,8 +71,6 @@ The snapshot includes the canvas, runs, cards, and chat sessions, but excludes A
 
 ## Roadmap
 
-- Move reference usage to RAG so nodes retrieve relevant passages by context instead of injecting whole documents.
-- Add a market research node for collecting and organizing competitor and market insights.
 - Improve interaction and feedback across existing nodes to make building and debugging workflows easier.
 - Expand beyond game design with templates and workflows for more general creative and planning use cases.
 
