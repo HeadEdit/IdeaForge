@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { deduplicate, rankResults, researcherPrompt, researchTools } from './vane-core.mjs';
+import { enrichSources } from './fetcher.mjs';
 
 export const requestSchema = z.object({
   query: z.string().trim().min(1).max(2000),
@@ -89,5 +90,7 @@ export async function research(input, { model, search, embed }, signal, emit = (
   const sources = deduplicate(findings);
   if (!sources.length) throw new Error(lastError ? 'search-unavailable' : 'no-results');
   if (!embed) warnings.add('embedding-not-configured');
-  return { queries: [...seen], sources, warnings: [...warnings], mode };
+  const enriched = await enrichSources(sources);
+  if (enriched.some((source) => source.fetched)) warnings.add('web-pages-read');
+  return { queries: [...seen], sources: enriched.map(({ fetched, ...source }) => source), warnings: [...warnings], mode };
 }

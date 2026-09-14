@@ -5,6 +5,7 @@ import { research } from './pipeline.mjs';
 import { deduplicate, rankResults } from './vane-core.mjs';
 import { createServer } from './server.mjs';
 import { createUpstreams } from './upstream.mjs';
+import { fetchPage } from './fetcher.mjs';
 
 const source = (name = 'a') => ({ title: name, url: `https://example.com/${name}`, content: `${name} facts` });
 const call = (name, args = {}) => ({ id: crypto.randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
@@ -126,4 +127,16 @@ test('closing SSE cancels an in-flight upstream model request', async () => {
     await reader.cancel();
     await observed;
   } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
+});
+
+test('page fetcher rejects private targets, follows safe redirects, and extracts bounded HTML', async () => {
+  await assert.rejects(fetchPage('http://127.0.0.1/'), /unsafe-url/);
+  const fakeFetch = async (url) => {
+    if (String(url).endsWith('/start')) return new Response(null, { status: 302, headers: { location: '/page' } });
+    return new Response('<html><script>bad()</script><main><h1>Title</h1><p>Useful article content that is long enough to be accepted by the extractor.</p></main></html>', { headers: { 'content-type': 'text/html' } });
+  };
+  const result = await fetchPage('https://example.com/start', fakeFetch);
+  assert.equal(result.url, 'https://example.com/page');
+  assert.match(result.content, /Useful article content/);
+  assert.doesNotMatch(result.content, /bad\(\)/);
 });
