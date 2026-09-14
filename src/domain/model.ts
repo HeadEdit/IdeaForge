@@ -49,6 +49,8 @@ export interface WorkflowNode {
 }
 
 export interface ChatMessage {
+  reasoningContent?: string;
+  webSearch?: boolean;
   role: 'user' | 'assistant' | 'system';
   content: string;
   agentEvents?: AgentEvent[];

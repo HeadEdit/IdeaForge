@@ -19,6 +19,8 @@ export interface AgentEvent {
 }
 
 export interface ChatActivity {
+  reasoningContent?: string;
+  webSearch?: boolean;
   nodeId: string;
   conversationId: string;
   question: string;

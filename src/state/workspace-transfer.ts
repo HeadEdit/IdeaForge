@@ -121,6 +121,8 @@ const cardSchema = z.object({
   createdAt: timestamp,
 }).strict();
 const messageSchema = z.object({
+  reasoningContent: z.string().optional(),
+  webSearch: z.boolean().optional(),
   role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
   agentEvents: z.array(z.object({

@@ -1559,6 +1559,9 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [tabindex]:fo
 .chat-dialog__skill-suggestion p { margin: 0; color: #57606a; }
 .chat-dialog__skill-suggestion-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .chat-dialog__thinking { margin: 0; color: #8a939c; font-size: 13px; }
+.chat-dialog__reasoning { margin: 0 0 12px; color: #8a939c; font-size: 13px; }
+.chat-dialog__reasoning summary { cursor: pointer; padding: 6px 0; user-select: none; }
+.chat-dialog__reasoning-body { margin-top: 8px; padding-left: 14px; border-left: 2px solid #dce1e6; overflow-wrap: anywhere; }
 .chat-dialog__typing { display: flex; gap: 5px; padding: 4px 0 8px; }
 .chat-dialog__typing span {
   width: 6px; height: 6px; border-radius: 50%; background: #c3c8ce;

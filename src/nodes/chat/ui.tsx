@@ -6,6 +6,7 @@ import { useStore } from 'zustand';
 import type { ChatMessage } from '../../domain/model';
 import { chatOperationKey } from '../../domain/execution-progress';
 import { AgentTimeline } from '../../features/chat/AgentTimeline';
+import { ReasoningView } from '../../features/chat/ReasoningView';
 import { ExecutionProgressView } from '../../components/ExecutionProgressView';
 import { activeConversationMessages, completeQaTurns, exportedTurnId, isOpeningContextMessage } from '../../domain/chat-conversations';
 import { ensureChatSessionShape } from '../../domain/chat-session-migrate';
@@ -123,6 +124,15 @@ export function ChatDialog({
     if (!scroller || highlightedTurnId) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [messages, busy, highlightedTurnId]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller || highlightedTurnId) return;
+    // Follow new reasoning only while the reader remains near the bottom.
+    if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160) {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
+  }, [activity?.reasoningContent, highlightedTurnId]);
 
   useEffect(() => {
     if (!highlightedTurnId) return;
@@ -388,6 +398,7 @@ export function ChatDialog({
                   <div className="chat-dialog__turn-body">
                     {turn.map((message, messageIndex) => (
                       <div key={`${message.role}-${messageIndex}`}>
+                      {message.role === 'assistant' && <ReasoningView content={message.reasoningContent} />}
                       <ChatBubble
                         key={`${message.role}-${messageIndex}`}
                         message={message}
@@ -442,7 +453,7 @@ export function ChatDialog({
                           );
                         } : undefined}
                       />
-                      {message.agentEvents && <AgentTimeline events={message.agentEvents} />}
+                      {message.agentEvents && (message.webSearch ?? parsed.data?.webSearch) && <AgentTimeline events={message.agentEvents} />}
                       </div>
                     ))}
                   </div>
@@ -451,9 +462,9 @@ export function ChatDialog({
             })}
             {busy && (
               <div className="chat-dialog__assistant-wrap">
-                <p className="chat-dialog__thinking">正在思考</p>
-                {activity && <ExecutionProgressView progress={activity.progress} />}
-                {activity && <AgentTimeline events={activity.events} />}
+                <ReasoningView content={activity?.reasoningContent} running />
+                {activity && activity.webSearch && <ExecutionProgressView progress={activity.progress} />}
+                {activity && activity.webSearch && <AgentTimeline events={activity.events} />}
                 <div className="chat-dialog__typing" aria-label="正在生成">
                   <span /><span /><span />
                 </div>

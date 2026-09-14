@@ -1,4 +1,5 @@
 import type { AiSettings, ChatMessage } from '../domain/model';
+import { readChatStream } from './chat-stream';
 import { getAiErrorMessage } from './error-messages';
 import { AI_REQUEST_LIMITS, resolveAiMaxTokens } from './request-config';
 import { toolReplySchema, type AiTool, type AiToolMessage, type AiToolReply } from './tool-calling';
@@ -28,6 +29,7 @@ export class AiClientError extends Error {
 }
 
 export interface AiRequestOptions {
+  onReasoningDelta?: (delta: string) => void;
   onSearchProgress?: (event: SearchProgress) => void;
   signal?: AbortSignal;
   temperature?: number;
@@ -180,6 +182,7 @@ export function createAiClient(
             }),
             tools,
             tool_choice: 'auto',
+            ...(options.onReasoningDelta ? { stream: true } : {}),
             max_tokens: Math.floor(maxTokens),
             ...(model.toLowerCase().startsWith('deepseek-') ? {
               thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' },
@@ -193,7 +196,15 @@ export function createAiClient(
       }
       if (!response.ok) throw classifyStatus(response.status);
       let payload;
-      try { payload = await response.json(); }
+      try {
+        if (options.onReasoningDelta && response.headers.get('content-type')?.includes('text/event-stream')) {
+          payload = { choices: [{ message: await readChatStream(response, options.onReasoningDelta, options.signal) }] };
+        } else {
+          payload = await response.json();
+          const reasoning = payload?.choices?.[0]?.message?.reasoning_content;
+          if (typeof reasoning === 'string') options.onReasoningDelta?.(reasoning);
+        }
+      }
       catch (error) { throw classifyFetchError(error, options.signal); }
       if (options.signal?.aborted) throw createError('stopped');
       const parsed = toolReplySchema.safeParse(payload?.choices?.[0]?.message);
@@ -225,6 +236,7 @@ export function createAiClient(
 
       const body = {
         model,
+        ...(options.onReasoningDelta ? { stream: true } : {}),
         messages: messages.map(({ role, content }) => ({ role, content })),
         ...(model.toLowerCase().startsWith('deepseek-')
           ? {
@@ -259,7 +271,14 @@ export function createAiClient(
 
       let payload: unknown;
       try {
-        payload = await response.json();
+        if (options.onReasoningDelta && response.headers.get('content-type')?.includes('text/event-stream')) {
+          payload = { choices: [{ message: await readChatStream(response, options.onReasoningDelta, options.signal) }] };
+        } else {
+          const json = await response.json();
+          const reasoning = json?.choices?.[0]?.message?.reasoning_content;
+          if (typeof reasoning === 'string') options.onReasoningDelta?.(reasoning);
+          payload = json;
+        }
       } catch (error) {
         throw classifyFetchError(error, options.signal);
       }

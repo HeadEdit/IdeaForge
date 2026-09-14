@@ -45,6 +45,7 @@ export function createChatEffects(runtime: ChatRuntime): NodeEffectContribution<
           && !!capabilities.workflow.getNode(nodeId)
           && !!capabilities.sessions.getSession(nodeId)?.conversations.some((c) => c.id === conversationId);
         let activity: ChatActivity = {
+          webSearch: parsed.data.webSearch,
           nodeId, conversationId, question: text,
           progress: { stage: '请求 AI', percent: 20, estimated: true }, events: [],
         };
@@ -57,6 +58,11 @@ export function createChatEffects(runtime: ChatRuntime): NodeEffectContribution<
             question: text, referencedCards: [],
             referencedText: texts.length ? texts.join('\n\n') : undefined,
             webSearch: parsed.data.webSearch, agentMode: parsed.data.agentMode, signal: controller.signal,
+            onReasoningDelta: (delta) => {
+              if (!owns() || controller.signal.aborted) return;
+              activity = { ...activity, reasoningContent: (activity.reasoningContent ?? '') + delta };
+              capabilities.sessions.setActivity?.(key, activity);
+            },
             onAgentEvent: (event) => {
               if (!owns()) return;
               const events = activity.events.some((item) => item.id === event.id)

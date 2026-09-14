@@ -102,7 +102,7 @@ export interface AgentResult {
   errorKind?: string;
 }
 
-export async function runChatAgent(client: AiClient, history: ChatMessage[], library: AgentLibrary, signal: AbortSignal, webSearch = false, onEvent?: (event: AgentEvent) => void): Promise<AgentResult> {
+export async function runChatAgent(client: AiClient, history: ChatMessage[], library: AgentLibrary, signal: AbortSignal, webSearch = false, onEvent?: (event: AgentEvent) => void, onReasoningDelta?: (delta: string) => void): Promise<AgentResult> {
   const audit: string[] = [];
   const searchSources = new Map<string, SearchResult['sources'][number]>();
   const searchWarnings = new Set<string>();
@@ -135,7 +135,14 @@ export async function runChatAgent(client: AiClient, history: ChatMessage[], lib
       assertActive(signal);
       const requestEvent: AgentEvent = { id: `request-${round}`, round: round + 1, kind: 'request', title: `第 ${round + 1} 轮模型请求`, status: 'running', startedAt: new Date().toISOString(), input: snapshot(messages) };
       emit(requestEvent);
-      const reply = await client.completeWithTools(messages, toolsFor(webSearch), { signal, maxTokens: AI_REQUEST_LIMITS.tools });
+      let startedReasoning = false;
+      const reply = await client.completeWithTools(messages, toolsFor(webSearch), { signal, maxTokens: AI_REQUEST_LIMITS.tools,
+        ...(onReasoningDelta ? { onReasoningDelta: (delta: string) => {
+          if (!delta) return;
+          onReasoningDelta((!startedReasoning && round > 0 ? '\n\n' : '') + delta);
+          startedReasoning = true;
+        } } : {}),
+      });
       assertActive(signal);
       emit({ ...requestEvent, status: 'succeeded', finishedAt: new Date().toISOString() });
       emit({ id: `response-${round}`, round: round + 1, kind: 'response', title: `第 ${round + 1} 轮模型回复`, status: 'succeeded', startedAt: new Date().toISOString(), output: snapshot({ content: reply.content, tool_calls: reply.tool_calls }) });
