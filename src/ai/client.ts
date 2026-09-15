@@ -149,13 +149,9 @@ function getContent(payload: unknown): string | undefined {
   return content.trim().length > 0 ? content : undefined;
 }
 
-function reasoningLanguageInstruction(content: string): string {
-  const hanCount = content.match(/\p{Script=Han}/gu)?.length ?? 0;
-  const latinCount = content.match(/\p{Script=Latin}/gu)?.length ?? 0;
-  return hanCount > 0 && hanCount >= latinCount
-    ? '请使用中文进行推理，思考内容使用用户当前输入的语言。'
-    : "Reason in English. Use the language of the user's current input for reasoning content.";
-}
+const REASONING_LANGUAGE_INSTRUCTION =
+  '用与用户当前对话一致的语言进行推理。' +
+  '若本轮只是简短确认或选项（如 A、B、是、好的、OK），跟随上文用户消息的语言，不要仅因本轮是字母或英文词就改用英文。';
 
 function addReasoningLanguageInstruction<T extends ChatMessage | AiToolMessage>(messages: T[]): T[] {
   let latestUserIndex = -1;
@@ -170,7 +166,7 @@ function addReasoningLanguageInstruction<T extends ChatMessage | AiToolMessage>(
   return messages.map((message, index) => index === latestUserIndex
     ? {
         ...message,
-        content: `${message.content}\n\n${reasoningLanguageInstruction(message.content ?? '')}`,
+        content: `${message.content}\n\n${REASONING_LANGUAGE_INSTRUCTION}`,
       } as T
     : message);
 }
