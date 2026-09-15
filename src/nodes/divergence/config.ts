@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const divergenceFeedbackModeSchema = z.enum(['explore', 'balanced', 'exploit']);
+export const divergenceFeedbackModeSchema = z.enum(['off', 'explore', 'balanced', 'exploit']);
 export type DivergenceFeedbackMode = z.infer<typeof divergenceFeedbackModeSchema>;
 
 export const divergenceConfigSchema = z.object({

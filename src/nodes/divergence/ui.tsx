@@ -14,6 +14,7 @@ const TEMPERATURE_OPTIONS = [
 ];
 
 const FEEDBACK_MODE_OPTIONS = [
+  { value: 'off', label: '不使用' },
   { value: 'explore', label: '探索（弱化历史偏好）' },
   { value: 'balanced', label: '均衡（软偏置+探索配额）' },
   { value: 'exploit', label: '深挖（优先跟随方向）' },
@@ -60,12 +61,13 @@ export function DivergenceInspector({
       ) : null}
 
       <label>
-        最近再生成方向
-        <p className="inspector-preview">
-          {config.lastDirection?.trim()
-            ? config.lastDirection.trim()
-            : '尚未评估出方向'}
-        </p>
+        再生成方向
+        <Input.TextArea
+          value={config.lastDirection ?? ''}
+          onChange={(event) => patch({ lastDirection: event.target.value })}
+          rows={4}
+          placeholder="有内容时本轮直接使用；清空后下次运行会根据赞踩自动推断"
+        />
       </label>
 
       <label>

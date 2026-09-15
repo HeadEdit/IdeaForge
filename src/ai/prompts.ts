@@ -165,7 +165,7 @@ export type DivergenceMessageOptions = {
 export function buildFeedbackEvaluationMessages(
   requirement: string,
   feedbackCards: readonly CandidateCard[],
-  feedbackMode: Exclude<DivergenceFeedbackMode, 'explore'> = 'balanced',
+  feedbackMode: Exclude<DivergenceFeedbackMode, 'off' | 'explore'> = 'balanced',
 ): ChatMessage[] {
   const lines: string[] = [
     divergencePrompts.topic(requirement),
@@ -205,7 +205,7 @@ export function buildDivergenceMessages(
   const feedbackMode = options.feedbackMode ?? 'balanced';
   const userParts: string[] = [divergencePrompts.topic(requirement)];
   const direction = options.direction?.trim();
-  if (direction && feedbackMode !== 'explore') {
+  if (direction && feedbackMode !== 'off' && feedbackMode !== 'explore') {
     userParts.push(
       [divergencePrompts.directionIntro, direction].join('\n'),
     );

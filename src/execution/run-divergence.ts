@@ -85,7 +85,7 @@ async function evaluateFeedbackDirection(
   wait: (ms: number) => Promise<void>,
 ): Promise<string | undefined> {
   const feedbackMode = config.feedbackMode ?? 'balanced';
-  if (feedbackMode === 'explore' || feedbackCards.length === 0) {
+  if (feedbackMode === 'off' || feedbackMode === 'explore' || feedbackCards.length === 0) {
     return undefined;
   }
   try {
@@ -175,14 +175,22 @@ export function createDivergenceRunner(
       const batchSize = config.batchSize;
 
       try {
-        const directionPromise = evaluateFeedbackDirection(
-          client,
-          context,
-          config,
-          requirement,
-          feedbackCards,
-          wait,
-        );
+        const feedbackMode = config.feedbackMode ?? 'balanced';
+        const usesFeedback = feedbackMode !== 'off' && feedbackMode !== 'explore';
+        const manualDirection = usesFeedback ? config.lastDirection?.trim() : undefined;
+        const shouldEvaluateDirection = usesFeedback
+          && !manualDirection
+          && feedbackCards.length > 0;
+        const directionPromise = shouldEvaluateDirection
+          ? evaluateFeedbackDirection(
+            client,
+            context,
+            config,
+            requirement,
+            feedbackCards,
+            wait,
+          )
+          : Promise.resolve(manualDirection || undefined);
 
         let methodIds: string[];
         context.reportProgress?.({ stage: '分析反馈与推断方法', percent: 15, estimated: true });
@@ -293,7 +301,7 @@ export function createDivergenceRunner(
           ok: true,
           metrics,
           producedCards,
-          ...(direction ? { configPatch: { lastDirection: direction } } : {}),
+          ...(direction && !manualDirection ? { configPatch: { lastDirection: direction } } : {}),
         };
       } catch (error) {
         if (isAiClientError(error) && error.kind === 'stopped') {

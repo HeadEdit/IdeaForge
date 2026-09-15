@@ -1,4 +1,4 @@
-export type DivergenceFeedbackMode = 'explore' | 'balanced' | 'exploit';
+export type DivergenceFeedbackMode = 'off' | 'explore' | 'balanced' | 'exploit';
 
 export const divergencePrompts = {
   feedbackPolicy(mode: DivergenceFeedbackMode): string {
@@ -6,6 +6,9 @@ export const divergencePrompts = {
       '避免与已有卡片在标题或概念上重复。已有卡片清单仅供去重，不要把清单项当作必须延续的偏好。'
       + '禁止点名、引用或对照其它卡片（含池中已有卡与本批其它项）；输出须各自独立成立。'
     );
+    if (mode === 'off') {
+      return `${dedupe}本轮不使用反馈利用：忽略赞踩、评分、短评与再生成方向，仅按主题与方法生成。`;
+    }
     if (mode === 'explore') {
       return (
         `${dedupe}`
@@ -45,7 +48,7 @@ export const divergencePrompts = {
     return `- 标题：${card.title}；概念：${card.concept}`;
   },
   evaluation: {
-    system(mode: Exclude<DivergenceFeedbackMode, 'explore'>): string {
+    system(mode: Exclude<DivergenceFeedbackMode, 'off' | 'explore'>): string {
       const shared = [
         '你是创意反馈评估器。根据主题与已有卡片的用户赞踩、评分与文字评价，归纳简短的再生成方向。',
         '用户点赞/点踩优先于评分均分；均分高低为次要参考。',
