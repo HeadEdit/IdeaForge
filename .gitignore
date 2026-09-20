@@ -1,3 +1,6 @@
+# Local preview demos (not tracked)
+demos/
+
 # Dependencies
 node_modules/
 

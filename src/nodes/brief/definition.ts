@@ -14,5 +14,6 @@ export const briefDefinition = freezeDefinition({
     { id: 'text', label: 'Brief 文本', type: 'Text' },
   ],
   autoRun: false,
+  hiddenFromLibrary: true,
   defaultConfig: defaultBriefConfig,
 });

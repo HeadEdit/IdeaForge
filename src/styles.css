@@ -393,6 +393,115 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [tabindex]:fo
   opacity: 0.42;
   cursor: not-allowed;
 }
+
+.pane-context-menu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 164px;
+  padding: 6px;
+  border: 1px solid #d5dce4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(24 32 42 / 16%);
+}
+.pane-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1f242a;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.pane-context-menu__item:hover,
+.pane-context-menu__item:focus-visible {
+  outline: none;
+  background: #eef3ff;
+  color: #2f6fed;
+}
+.pane-context-menu__glyph {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #eef3ff;
+  color: #2f6fed;
+  font-size: 13px;
+}
+
+.canvas-annotation {
+  display: flex;
+  flex-direction: column;
+  width: 220px;
+  min-height: 140px;
+  overflow: hidden;
+  border: 1px solid #e8dfc4;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffef9 0%, #fffdf6 100%);
+  box-shadow: 0 10px 28px rgb(24 32 42 / 12%);
+}
+.canvas-annotation.is-selected {
+  box-shadow: 0 0 0 2px rgb(47 111 237 / 28%), 0 10px 28px rgb(24 32 42 / 12%);
+}
+.canvas-annotation__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid rgb(200 184 140 / 35%);
+  background: rgb(255 248 220 / 65%);
+  cursor: grab;
+}
+.canvas-annotation__header:active { cursor: grabbing; }
+.canvas-annotation__title {
+  color: #8a7340;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.canvas-annotation__delete {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #6b7480;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.canvas-annotation__delete:hover,
+.canvas-annotation__delete:focus-visible {
+  outline: none;
+  background: rgb(194 59 59 / 10%);
+  color: #c23b3b;
+}
+.canvas-annotation__body {
+  flex: 1;
+  width: 100%;
+  min-height: 96px;
+  padding: 12px;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: #1f242a;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  outline: none;
+}
+.canvas-annotation__body::placeholder { color: #a39a82; }
+
 .workflow-node .react-flow__handle {
   width: 10px;
   height: 10px;

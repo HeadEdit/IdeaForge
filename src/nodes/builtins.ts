@@ -1,3 +1,4 @@
+import { annotationPlugin } from './annotation';
 import { briefPlugin } from './brief';
 import { cardContentPlugin } from './card-content';
 import { cardVariablePlugin } from './card-variable';
@@ -21,6 +22,7 @@ export const builtinNodePlugins = [
   referencePlugin,
   contentExtractPlugin,
   structuredPlanPlugin,
+  annotationPlugin,
 ] as const;
 
 export const builtinNodePlatform = createNodePlatform(builtinNodePlugins);

@@ -91,6 +91,5 @@ export async function research(input, { model, search, embed }, signal, emit = (
   if (!sources.length) throw new Error(lastError ? 'search-unavailable' : 'no-results');
   if (!embed) warnings.add('embedding-not-configured');
   const enriched = await enrichSources(sources);
-  if (enriched.some((source) => source.fetched)) warnings.add('web-pages-read');
   return { queries: [...seen], sources: enriched.map(({ fetched, ...source }) => source), warnings: [...warnings], mode };
 }

@@ -66,7 +66,11 @@ export function NodeInspector({
             workflow={workflow}
             cards={cards}
             documents={documents}
-            patchConfig={(patch: unknown) => store.getState().patchNodeConfig(node.id, patch)}
+            patchConfig={(patch: unknown) => store.getState().patchNodeConfig(
+              node.id,
+              patch,
+              node.kind === 'annotation' ? { invalidateDescendants: false } : undefined,
+            )}
           />
         )}
         {latestRun && (

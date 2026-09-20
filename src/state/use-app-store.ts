@@ -121,7 +121,7 @@ export interface AppState {
   renameWorkflow(id: string, name: string): Promise<void>;
   deleteNode(nodeId: string): Promise<void>;
   openWorkflow(id: string): Promise<void>;
-  addNode(kind: NodeKind, position: { x: number; y: number }): void;
+  addNode(kind: NodeKind, position: { x: number; y: number }): string | undefined;
   connect(edge: WorkflowEdge): ConnectionValidation;
   disconnect(edgeId: string): void;
   disconnectPort(nodeId: string, portId: string, direction: PortDirection): void;
@@ -1239,18 +1239,20 @@ export function createAppStore(dependencies: AppStoreDependencies): AppStore {
       const config = builtinNodePlatform.cloneDefaultConfig(kind);
       const parsed = builtinNodePlatform.parseConfig(kind, config);
       if (!parsed.ok) {
-        return;
+        return undefined;
       }
+      const id = dependencies.id();
       updateWorkflow((workflow) => ({
         ...workflow,
         nodes: [...workflow.nodes, {
-          id: dependencies.id(),
+          id,
           kind,
           position: { ...position },
           config: parsed.config,
           status: 'idle',
         }],
       }));
+      return id;
     },
 
     connect(edge) {

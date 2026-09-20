@@ -13,5 +13,6 @@ export const contentExtractDefinition = freezeDefinition({
     { id: 'execOut', label: '执行', type: 'Control', optional: true },
   ],
   autoRun: false,
+  hiddenFromLibrary: true,
   defaultConfig: defaultContentExtractConfig,
 });

@@ -14,5 +14,6 @@ export const structuredPlanDefinition = freezeDefinition({
     { id: 'modules', label: '策划模块', type: 'TextStruct' },
   ],
   autoRun: false,
+  hiddenFromLibrary: true,
   defaultConfig: defaultStructuredPlanConfig,
 });

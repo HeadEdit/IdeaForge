@@ -1,3 +1,4 @@
+import { annotationDefinition } from '../nodes/annotation/definition';
 import { briefDefinition } from '../nodes/brief/definition';
 import { cardContentDefinition } from '../nodes/card-content/definition';
 import { cardVariableDefinition } from '../nodes/card-variable/definition';
@@ -9,7 +10,7 @@ import { referenceDefinition } from '../nodes/reference/definition';
 import { structuredPlanDefinition } from '../nodes/structured-plan/definition';
 import { textSelectDefinition } from '../nodes/text-select/definition';
 import type { NodeKind, PortDataType } from './model';
-export type NodeCategory = 'variable' | 'generate' | 'select';
+export type NodeCategory = 'variable' | 'generate' | 'select' | 'annotate';
 export type PortDirection = 'input' | 'output';
 
 export interface NodePort {
@@ -27,6 +28,8 @@ export interface NodeDefinition {
   readonly outputs: readonly NodePort[];
   readonly defaultConfig: unknown;
   readonly autoRun: boolean;
+  /** 为 true 时不出现在节点库，已有画布节点仍可加载与运行 */
+  readonly hiddenFromLibrary?: boolean;
 }
 
 export const nodeDefinitions: readonly NodeDefinition[] = Object.freeze([
@@ -40,6 +43,7 @@ export const nodeDefinitions: readonly NodeDefinition[] = Object.freeze([
   referenceDefinition,
   contentExtractDefinition,
   structuredPlanDefinition,
+  annotationDefinition,
 ]);
 
 export function lookupNodeDefinition(kind: string): NodeDefinition | undefined {

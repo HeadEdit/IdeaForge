@@ -49,7 +49,7 @@ export const nodeLabels: Record<string, string> = Object.fromEntries(
   nodeUiPlugins.map((plugin) => [plugin.kind, plugin.label]),
 );
 
-const categoryLabels: Record<NodeCategory, string> = {
+const categoryLabels: Partial<Record<NodeCategory, string>> = {
   variable: '变量',
   generate: 'AI 生成',
   select: '筛选数据',
@@ -63,9 +63,9 @@ export function nodeLibraryGroups(): Array<{
   return (Object.keys(categoryLabels) as NodeCategory[])
     .map((category) => ({
       category,
-      label: categoryLabels[category],
+      label: categoryLabels[category]!,
       kinds: builtinNodePlatform.definitions()
-        .filter((definition) => definition.category === category)
+        .filter((definition) => definition.category === category && !definition.hiddenFromLibrary)
         .map((definition) => definition.kind),
     }))
     .filter((group) => group.kinds.length > 0);

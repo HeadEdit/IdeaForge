@@ -21,8 +21,10 @@ import { planControlRun } from '../../domain/control-flow';
 import { deletionImpact, dropCardsOutsideVariablePools } from '../../domain/graph';
 import type { AppStore } from '../../state/use-app-store';
 import { lookupNodeUiPlugin, nodeUiPlugins } from '../nodes/ui-registry';
+import { AnnotationNodeView } from './AnnotationNode';
 import { NodeInspector } from './NodeInspector';
 import { NODE_DRAG_TYPE, NodeLibrary } from './NodeLibrary';
+import { PaneContextMenu, type PaneContextMenuState } from './PaneContextMenu';
 import { StatusBar } from './StatusBar';
 import { toFlowEdges, toFlowNodes } from './node-adapter';
 import { applySelectChanges, pruneSelectedIds } from './node-selection';
@@ -40,8 +42,15 @@ export interface WorkbenchProps {
   onOpenNode?: (nodeId: string) => void;
 }
 
-const nodeTypes = { workflow: WorkflowNodeView };
-const validKinds = new Set(nodeUiPlugins.map((plugin) => plugin.kind));
+const nodeTypes = {
+  workflow: WorkflowNodeView,
+  annotation: AnnotationNodeView,
+};
+const validKinds = new Set(
+  nodeUiPlugins
+    .filter((plugin) => plugin.kind !== 'annotation')
+    .map((plugin) => plugin.kind),
+);
 
 function IconButton({ label, children, onClick, disabled, disabledReason, showLabel }: { label: string; children: React.ReactNode; onClick: () => void; disabled?: boolean; disabledReason?: string; showLabel?: boolean }) {
   return (
@@ -90,6 +99,8 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>(null);
   const [mobileMultiSelect, setMobileMultiSelect] = useState(false);
+  const [paneMenu, setPaneMenu] = useState<PaneContextMenuState | null>(null);
+  const [autoFocusNodeId, setAutoFocusNodeId] = useState<string>();
   const isMobile = useMobileWorkbench();
   const canvasRef = useRef<HTMLElement>(null);
   const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow();
@@ -100,13 +111,31 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
   }, [onOpenNode, store]);
 
   const requestDeleteNode = useCallback((nodeId: string) => {
+    const kind = store.getState().workflow?.nodes.find((node) => node.id === nodeId)?.kind;
+    if (kind === 'annotation') {
+      void store.getState().deleteNode(nodeId);
+      return;
+    }
     setDeleteTarget(nodeId);
     setDeleteOpen(true);
-  }, []);
+  }, [store]);
 
   const disconnectPort = useCallback((nodeId: string, portId: string, direction: 'input' | 'output') => {
     store.getState().disconnectPort(nodeId, portId, direction);
   }, [store]);
+
+  const patchNodeConfig = useCallback((nodeId: string, patch: unknown) => {
+    const kind = store.getState().workflow?.nodes.find((node) => node.id === nodeId)?.kind;
+    store.getState().patchNodeConfig(
+      nodeId,
+      patch,
+      kind === 'annotation' ? { invalidateDescendants: false } : undefined,
+    );
+  }, [store]);
+
+  const clearAutoFocus = useCallback((nodeId: string) => {
+    setAutoFocusNodeId((current) => (current === nodeId ? undefined : current));
+  }, []);
 
   const executionAvailable = store.getState().isExecutionAvailable();
   const hasRunningNodes = workflow?.nodes.some((node) => node.status === 'running') ?? false;
@@ -120,7 +149,12 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
     onDelete: requestDeleteNode,
     onDisconnectPort: disconnectPort,
     onRun: executionAvailable ? runNode : undefined,
-  }, selectedNodeIds, cards, documents, progress) : [], [workflow, openNode, requestDeleteNode, disconnectPort, runNode, executionAvailable, selectedNodeIds, cards, documents, progress]);
+    onPatchConfig: patchNodeConfig,
+    onClearAutoFocus: clearAutoFocus,
+  }, selectedNodeIds, cards, documents, progress, autoFocusNodeId) : [], [
+    workflow, openNode, requestDeleteNode, disconnectPort, runNode, executionAvailable,
+    selectedNodeIds, cards, documents, progress, autoFocusNodeId, patchNodeConfig, clearAutoFocus,
+  ]);
   const flowEdges = useMemo(() => workflow ? toFlowEdges(workflow) : [], [workflow]);
   const focusedNodeId = selectedNodeIds.at(-1);
   const selectedNode = workflow?.nodes.find((node) => node.id === focusedNodeId);
@@ -196,6 +230,24 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
     }));
     if (isMobile) setMobilePanel(null);
   }, [isMobile, screenToFlowPosition, store]);
+
+  const addAnnotationAt = useCallback((position: { x: number; y: number }) => {
+    const id = store.getState().addNode('annotation', position);
+    if (!id) return;
+    setSelectedNodeIds([id]);
+    setAutoFocusNodeId(id);
+  }, [store]);
+
+  const handlePaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
+    event.preventDefault();
+    const flow = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    setPaneMenu({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      flowX: flow.x,
+      flowY: flow.y,
+    });
+  }, [screenToFlowPosition]);
 
   const handleConnect = useCallback((connection: Connection) => {
     if (!connection.source || !connection.target || !connection.sourceHandle || !connection.targetHandle) {
@@ -291,7 +343,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           onZoomIn={() => { void zoomIn(); }}
           onZoomOut={() => { void zoomOut(); }}
           onFitView={() => { void fitView(); }}
-          onDelete={() => { if (selectedNode) { setDeleteTarget(selectedNode.id); setDeleteOpen(true); } }}
+          onDelete={() => { if (selectedNode) requestDeleteNode(selectedNode.id); }}
           onToggleMultiSelect={() => setMobileMultiSelect((enabled) => !enabled)}
           onOpenAiSettings={() => onOpenAiSettings?.()}
         />
@@ -318,7 +370,7 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
           <IconButton label="缩小" onClick={() => { void zoomOut(); }}><ZoomOut size={17} /></IconButton>
           <IconButton label="适应视图" onClick={() => { void fitView(); }}><Maximize size={17} /></IconButton>
           <span className="toolbar-divider" />
-          {selectedNode && <IconButton label="删除选中节点" onClick={() => { setDeleteTarget(selectedNode.id); setDeleteOpen(true); }}><Trash2 size={17} /></IconButton>}
+          {selectedNode && <IconButton label="删除选中节点" onClick={() => requestDeleteNode(selectedNode.id)}><Trash2 size={17} /></IconButton>}
           <IconButton label="AI 设置" onClick={() => onOpenAiSettings?.()} disabled={!onOpenAiSettings} disabledReason="AI 设置尚未接入"><Settings size={17} /></IconButton>
         </div>
       </header>}
@@ -335,9 +387,12 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
               defaultViewport={workflow.viewport}
               onNodesChange={handleNodeChanges}
               onNodeClick={handleNodeClick}
-              onPaneClick={() => setSelectedNodeIds([])}
+              onPaneClick={() => {
+                setSelectedNodeIds([]);
+                setPaneMenu(null);
+              }}
               onNodeContextMenu={(event) => event.preventDefault()}
-              onPaneContextMenu={(event) => event.preventDefault()}
+              onPaneContextMenu={handlePaneContextMenu}
               deleteKeyCode={null}
               selectionOnDrag={!isMobile}
               selectionMode={SelectionMode.Partial}
@@ -360,6 +415,11 @@ function WorkbenchCanvas({ store, createEdgeId, onOpenAiSettings, onOpenNode }: 
             </ReactFlow>
           ) : <div className="canvas-loading">正在准备工作台...</div>}
           {connectionFeedback && <div className="connection-feedback" role="status" aria-live="polite">{connectionFeedback}</div>}
+          <PaneContextMenu
+            state={paneMenu}
+            onClose={() => setPaneMenu(null)}
+            onAddAnnotation={addAnnotationAt}
+          />
         </section>
         {!isMobile && nodeInspector}
       </div>
